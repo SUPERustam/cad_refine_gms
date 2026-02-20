@@ -1,0 +1,12 @@
+__pycache__
+datasets/
+logs/
+slurm_logs/
+logs_rl/
+
+*.png
+
+rl_checkpoints/
+checkpoints/
+
+.env

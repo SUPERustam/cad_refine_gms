@@ -10,3 +10,5 @@ rl_checkpoints/
 checkpoints/
 
 .env
+
+*.egg-info/

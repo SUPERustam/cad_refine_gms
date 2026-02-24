@@ -79,11 +79,19 @@ lr_scheduler = get_constant_schedule(optimizer)
 
 nc_params = {
     "get_nc": rargs.get_nc,
-    "n_points" : rargs.nc_n_points, 
-    "tol" : rargs.nc_tol,
+    "n_points": rargs.nc_n_points,
+    "tol": rargs.nc_tol,
+    "get_aoc_gms": rargs.get_aoc_gms,
+    "aoc_gms_n_points": rargs.aoc_gms_n_points,
+    "aoc_gms_rel_tol": rargs.aoc_gms_rel_tol,
+    "aoc_gms_n_angles": rargs.aoc_gms_n_angles,
+    "aoc_gms_cube_trick": rargs.aoc_gms_cube_trick,
+    "aoc_gms_pc_cache_enable": rargs.aoc_gms_pc_cache_enable,
+    "aoc_gms_upper_bound_tol_rt": rargs.aoc_gms_upper_bound_tol_rt,
+    "aoc_gms_autofix_sampling": rargs.aoc_gms_autofix_sampling,
 }
 reward_fn = get_reward_function(failure_reward=rargs.failure_reward, iou_coef=rargs.iou_coef, cd_coef=rargs.cd_coef, 
-            auc_coef=rargs.auc_coef, nc_params=nc_params, mode=rargs.r_mode, print_every = rargs.print_sample_steps)
+            auc_coef=rargs.auc_coef, aoc_gms_coef=rargs.aoc_gms_coef, nc_params=nc_params, mode=rargs.r_mode, print_every = rargs.print_sample_steps)
 
 
 # those parameters will be passed to vllm generation trainer

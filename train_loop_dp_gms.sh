@@ -11,7 +11,7 @@ RUN_NAME="rl_gms_train"
 LOG_FILE="/scratch/498rustam/cad_refine_m/logs_rl/${RUN_NAME}.log"
 LAUNCH_SCRIPT="/scratch/498rustam/cad_refine_m/rl_train_cos_sched.py"
 
-CONFIG_FILE="/scratch/498rustam/cad_refine_m/config.yaml"
+CONFIG_FILE="/scratch/498rustam/cad_refine_m/configs/gms_config.yaml"
 VLLM_LOG="/scratch/498rustam/cad_refine_m/logs_rl/vllm_server.log"
 
 RESUME="False"

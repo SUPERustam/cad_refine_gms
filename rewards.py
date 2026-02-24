@@ -27,7 +27,7 @@ def reward_from_metrics(cd: float, iou: float, auc: float = 0, mode: str = "defa
     return float(np.clip(r, -10.0, 10.0))
 
 
-def get_reward_function(failure_reward, iou_coef=10, cd_coef=0, auc_coef=0, nc_params=None, mode="10_iou", print_every=50, var_name=None):
+def get_reward_function(failure_reward, iou_coef=10, cd_coef=0, auc_coef=0, aoc_gms_coef=0, nc_params=None, mode="10_iou", print_every=50, var_name=None):
     def combined_reward(completions, mesh_path, trainer_state=None, **kwargs):
         vn = var_name or _DEFAULT_VAR_NAME
         # Get individual rewards
@@ -47,7 +47,27 @@ def get_reward_function(failure_reward, iou_coef=10, cd_coef=0, auc_coef=0, nc_p
             if iou is None and iou_coef > 0:
                 reward = failure_reward
             else:
-                reward = reward_from_metrics(cd, iou, auc=auc, mode=None)
+                use_aoc_gms = (
+                    nc_params
+                    and nc_params.get("get_aoc_gms")
+                    and aoc_gms_coef > 0
+                )
+                if use_aoc_gms:
+                    auc_gms_value = m.get("auc_gms")
+                    if auc_gms_value is None:
+                        reward = failure_reward
+                    else:
+                        gms_reward = reward_from_metrics(
+                            cd,
+                            iou,
+                            auc_gms=auc_gms_value,
+                            mode="10_auc_gms",
+                        )
+                        reward = float(
+                            np.clip((aoc_gms_coef / 10.0) * gms_reward, -10.0, 10.0)
+                        )
+                else:
+                    reward = reward_from_metrics(cd, iou, auc=auc, mode=None)
             if not math.isfinite(reward): reward = failure_reward
             rewards.append(float(reward))
 

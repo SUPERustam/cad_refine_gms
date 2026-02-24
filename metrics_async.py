@@ -274,7 +274,7 @@ def get_metrics_from_single_text(text, gt_file, n_points, nc_params=None, var_na
     
     if pred_mesh is None:
         return dict(file_name=base_file, cd=None, iou=None, auc=None)
-    cd, iou, auc = None, None, None
+    cd, iou, auc, auc_gms = None, None, None, None
     try: 
         gt_mesh = trimesh.load_mesh(gt_file)
         gt_mesh = transform_mesh_0_1(gt_mesh)
@@ -286,8 +286,35 @@ def get_metrics_from_single_text(text, gt_file, n_points, nc_params=None, var_na
         except Exception as e:
             print(f"IoU error for {base_file}: {e}", flush=True)
             iou = None
-        if nc_params and nc_params["get_nc" ] == True:
-            auc, _, _ = compute_normals_metrics(gt_mesh, pred_mesh, n_points=nc_params.get("n_points", n_points), tol=nc_params.get("tol", 5))
+            if nc_params and nc_params.get("get_nc") == True:
+                auc, _, _ = compute_normals_metrics(
+                    gt_mesh,
+                    pred_mesh,
+                    n_points=nc_params.get("n_points", n_points),
+                    tol=nc_params.get("tol", 5),
+                )
+            if nc_params and nc_params.get("get_aoc_gms", False):
+                try:
+                    from aoc_gms_metric import aoc_gms_from_meshes
+
+                    aoc_kwargs = {
+                        "n_points": nc_params.get("aoc_gms_n_points", n_points),
+                        "n_angles": nc_params.get("aoc_gms_n_angles", 125),
+                        "rel_dist_tol": nc_params.get("aoc_gms_rel_tol", 0.05),
+                        "cube_trick": nc_params.get("aoc_gms_cube_trick", True),
+                        "pc_cache_enable": nc_params.get("aoc_gms_pc_cache_enable", False),
+                        "upper_bound_tol_rt": nc_params.get("aoc_gms_upper_bound_tol_rt", 25),
+                        "autofix_sampling": nc_params.get("aoc_gms_autofix_sampling", False),
+                        "add_auc": True,
+                    }
+
+                    _, _, _, auc_gms = aoc_gms_from_meshes(
+                        gt_mesh,
+                        pred_mesh,
+                        **aoc_kwargs,
+                    )
+                except Exception as e:
+                    print(f"AOC-GMS error for {base_file}: {e}", flush=True)
 
     except Exception as e:
         print(f"error for {base_file}: {e}", flush=True)
@@ -300,7 +327,7 @@ def get_metrics_from_single_text(text, gt_file, n_points, nc_params=None, var_na
                 del pred_mesh
         except:
             pass
-    return dict(file_name=base_file, cd=cd, iou=iou, auc=auc)
+    return dict(file_name=base_file, cd=cd, iou=iou, auc=auc, auc_gms=auc_gms)
 
 
 

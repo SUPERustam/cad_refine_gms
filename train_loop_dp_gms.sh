@@ -7,7 +7,7 @@ set -uo pipefail
 DELAY=5
 BASE_DIR="/scratch/498rustam/cad_refine_m/rl_checkpoints/"
 CHECKPOINT="/scratch/498rustam/cad_refine_m/checkpoints/final_model/"
-RUN_NAME="rl_base_train"
+RUN_NAME="rl_gms_train"
 LOG_FILE="/scratch/498rustam/cad_refine_m/logs_rl/${RUN_NAME}.log"
 LAUNCH_SCRIPT="/scratch/498rustam/cad_refine_m/rl_train_cos_sched.py"
 

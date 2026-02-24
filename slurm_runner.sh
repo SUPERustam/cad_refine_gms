@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=cadrille_rl
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=20
+#SBATCH --cpus-per-task=15
 #SBATCH --gpus=4
 #SBATCH --output=slurm_logs/slurm_log-%j.out
 

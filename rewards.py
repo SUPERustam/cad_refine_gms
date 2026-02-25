@@ -9,6 +9,10 @@ _FALLBACK_VAR_NAME = os.getenv("METRICS_VAR_FALLBACK", "")
 
 def reward_from_metrics(cd: float, iou: float, auc: float = 0, mode: str = "default") -> float:
     if cd is None or math.isnan(cd) or cd <= 0: cd = 1.0
+    if iou is None or (isinstance(iou, float) and math.isnan(iou)):
+        iou = 0.0
+    if auc is None or (isinstance(auc, float) and math.isnan(auc)):
+        auc = 0.0
     if mode == "10_iou":
         r = 10.0 * float(iou)
     elif mode == "cd_to_reward":
@@ -44,7 +48,7 @@ def get_reward_function(failure_reward, iou_coef=10, cd_coef=0, auc_coef=0, aoc_
             iou = m["iou"] if m is not None else None
             cd =  m["cd"] if m is not None else None
             auc =  m["auc"] if m is not None else None
-            if iou is None and iou_coef > 0:
+            if iou is None:
                 reward = failure_reward
             else:
                 use_aoc_gms = (

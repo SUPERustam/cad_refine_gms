@@ -3,6 +3,7 @@ datasets/
 logs/
 slurm_logs/
 logs_rl/
+maksim_logs
 
 *.png
 
@@ -12,3 +13,4 @@ checkpoints/
 .env
 
 *.egg-info/
+rl_checkpoints_resume_16400

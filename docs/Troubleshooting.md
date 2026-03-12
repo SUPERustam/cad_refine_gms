@@ -39,3 +39,12 @@ For example, for Cadrille format it would be:
 ```sh
 export METRICS_VAR_NAME='r'
 ```
+
+4. Error `-7` or Out of Memory (OOM)
+    -   Decrease `per_device_train_batch_size`.
+    -   Ensure `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
+    -   Ensure `gradient_checkpointing: true` is in the config.
+
+5. Zero Loss / Zero Grad Norm
+    - Check `failure_reward` and ensure the model is initialized from a decent SFT checkpoint.
+    - Check if hf_dataset have proper paths to stls.

@@ -5,4 +5,4 @@
 #SBATCH --gpus=4
 #SBATCH --output=slurm_logs/slurm_log-%j.out
 
-srun bash /scratch/498rustam/cad_refine_m/train_loop_dp_gms.sh
+srun bash /scratch/498rustam/cad_refine_m/train_loop_dp_gms_resume.sh

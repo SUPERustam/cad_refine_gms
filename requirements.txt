@@ -1,0 +1,7 @@
+# Fast vLLM inference 
+flashinfer-python 
+flashinfer-cubin 
+
+--extra-index-url https://flashinfer.ai/whl/cu128
+flashinfer-jit-cache 
+torch-c-dlpack-ext

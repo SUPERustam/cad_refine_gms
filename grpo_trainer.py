@@ -301,6 +301,22 @@ class TopSampleGRPOTrainer(GRPOTrainer):
         
         return output
     
+    def _load_optimizer_and_scheduler(self, checkpoint):
+        """Load optimizer and scheduler from checkpoint; if param groups mismatch (e.g. different script/config), skip and continue with fresh optimizer."""
+        if checkpoint is None:
+            return
+        try:
+            super()._load_optimizer_and_scheduler(checkpoint)
+        except ValueError as e:
+            if "parameter groups" in str(e).lower() or "param_groups" in str(e).lower():
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Could not load optimizer/scheduler from checkpoint (parameter group mismatch). "
+                    "Continuing with fresh optimizer/scheduler state. Error: %s", e
+                )
+            else:
+                raise
+
     def _load_from_checkpoint(self, resume_from_checkpoint, model=None):
         from transformers.utils import CONFIG_NAME, WEIGHTS_NAME, WEIGHTS_INDEX_NAME, SAFE_WEIGHTS_NAME, SAFE_WEIGHTS_INDEX_NAME, check_torch_load_is_safe
         from transformers.trainer import logger

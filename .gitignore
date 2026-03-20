@@ -13,4 +13,5 @@ checkpoints/
 .env
 
 *.egg-info/
-rl_checkpoints_resume_*
+rl_checkpoints_*
+predictions/

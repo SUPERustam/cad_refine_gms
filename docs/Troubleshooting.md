@@ -44,6 +44,7 @@ export METRICS_VAR_NAME='r'
     -   Decrease `per_device_train_batch_size`.
     -   Ensure `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
     -   Ensure `gradient_checkpointing: true` is in the config.
+    -   Ensure that you not exited disk space.
 
 5. Zero Loss / Zero Grad Norm
     - Check `failure_reward` and ensure the model is initialized from a decent SFT checkpoint.

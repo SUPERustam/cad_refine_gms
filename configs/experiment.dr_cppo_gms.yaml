@@ -1,0 +1,5 @@
+{
+  "extends": "experiment.dr_cppo_constant.yaml",
+  "profile_id": "dr_cppo_gms",
+  "algorithm": "algorithm.dr_cppo_gms.yaml"
+}

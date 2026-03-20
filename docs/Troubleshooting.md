@@ -1,51 +1,91 @@
-1. Error with `bad interpreter: No such file or directory`
-Error looks like this (often with `trl` or `accelerate` libraries)
-```sh
-/scratch/498rustam/miniforge3/envs/cadtrl_restored/bin/trl: /home/jovyan/users/zhemchuzhnikov/miniconda3/envs/cadtrl/bin/python3.10: bad interpreter: No such file or directory
-```
+# Troubleshooting
 
-To fix it, you should edit file inside library folder. For example, for `trl` library it would be:
-```sh
-sed -i '1s|.*|#!/scratch/498rustam/miniforge3/envs/cadtrl_restored/bin/python3.10|' /scratch/498rustam/miniforge3/envs/cadtrl_restored/bin/trl && head -1 /scratch/498rustam/miniforge3/envs/cadtrl_restored/bin/trl
-```
+## `resume_train.py` cannot find a checkpoint
 
-2. Error `requests.exceptions.ConnectionError` with `vllm` library
+If resume fails with a checkpoint lookup error, verify:
 
-Error looks like this:
-```sh
-[rank0]: requests.exceptions.ConnectionError: HTTPConnectionPool(host='0.0.0.0', port=8000): Max retries exceeded with url: /health/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7fb07c23feb0>: Failed to establish a new connection: [Errno 111] Connection refused'))
-```
+- the run directory exists under the machine profile `run_root`
+- `checkpoints/index.jsonl` exists for that run, or `checkpoints/latest.txt` points at a real checkpoint
+- the `--checkpoint` value is one of `latest`, `best`, a recorded step, or an explicit path
 
-To fix try to increase timeout in `train_loop_dp_*.sh` or other running scripts.
-```sh 
-CUDA_VISIBLE_DEVICES=0 trl vllm-serve --model Qwen/Qwen2-VL-2B-Instruct --max_model_len 3600 >"$VLLM_LOG" 2>&1 &
-sleep 80 # <- this is the timeout
-```
+Use `python train.py --experiment ... --dry-run` to confirm you are resolving the expected machine profile and run root.
 
-3. Errors with `CadQuery` execution with zero loss
+## Prepared dataset path or split is missing
 
-Errors looks like this:
-```sh
-...
-Error executing CadQuery code : 'result'
-Error executing CadQuery code : 'result'
-...
+Training and inference load datasets from `task.prepared_datasets`.
 
-{'loss': 0.0, 'grad_norm': 0.0, 'learning_rate': 9.999999879097347e-06, 'entropy': 0.1934378132224083, 'clip_ratio/low_mean': 0.0, ...
-```
-Edit format of cadquery code using `METRICS_VAR_NAME` environment variable. Default is `result` for CadEvolve format.
+Check:
 
-For example, for Cadrille format it would be:
-```sh
-export METRICS_VAR_NAME='r'
-```
+- the resolved task profile contains the split you requested, for example `train` or `val`
+- the on-disk dataset path exists
+- the dataset was written with `prepare_dataset.py`
 
-4. Error `-7` or Out of Memory (OOM)
-    -   Decrease `per_device_train_batch_size`.
-    -   Ensure `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
-    -   Ensure `gradient_checkpointing: true` is in the config.
-    -   Ensure that you not exited disk space.
+`infer.py --split val` will fail if the task profile has no `val` dataset entry.
 
-5. Zero Loss / Zero Grad Norm
-    - Check `failure_reward` and ensure the model is initialized from a decent SFT checkpoint.
-    - Check if hf_dataset have proper paths to stls.
+## `prepare_dataset.py` fails with a `vis_for_norm_parts` message
+
+Dataset preparation uses an optional rendering dependency that is intentionally isolated from training, inference, evaluation, and runtime code.
+
+If you see an error mentioning `vis_for_norm_parts`:
+
+- install that dependency in the dataset-prep environment
+- or run dataset preparation in an environment that already provides it
+- do not treat it as a training or inference dependency leak
+
+## vLLM or generation endpoint does not come up cleanly
+
+If generation fails around connection or startup:
+
+- compare `trainer.vllm_server_port` with the machine profile `vllm_port`
+- verify any required environment variables from `machine.environment`
+- inspect the resolved contract with `--dry-run` before launching the run
+
+The supported interface is profile-driven; do not rely on deleted shell wrappers or legacy launch scripts.
+
+## CadQuery output variable mismatch
+
+If generated code executes but mesh building or evaluation reports invalid code, check the expected output variable name.
+
+The current interfaces use:
+
+- `task.output_var_name` in the task profile
+- `--var-name` in `build_meshes.py`
+- `--var-name` in `evaluate.py`
+
+These must agree with the variable assigned by the generated CadQuery program. The default task profile uses `result`.
+
+## Import errors after local refactors
+
+This repo no longer supports importing former root modules such as metric helpers, trainer internals, dataset helpers, or small utility modules directly from the repo root.
+
+If local code still imports names like `metrics_async`, `grpo_trainer`, `grpo_loss`, `rewards`, `multiview_dataset`, `helper_visu`, or `utils`, update those imports to `cad_rl...` package paths instead.
+
+## OOM or unstable training
+
+If training runs out of memory or becomes unstable:
+
+- reduce `trainer.per_device_train_batch_size`
+- reduce `trainer.max_completion_length`
+- reduce `trainer.num_generations` or `trainer.generation_batch_size`
+- keep `gradient_checkpointing` enabled unless you have a reason to disable it
+- verify there is enough free disk space under the run root and cache directories
+
+## Zero loss or zero useful reward signal
+
+Common causes:
+
+- dataset rows point at bad mesh paths
+- nearly all generations fail execution and only receive `failure_reward`
+- the checkpoint is too weak for the current task
+- reward coefficients do not match the intended profile variant
+
+Inspect the generated inference JSONL and evaluation outputs before changing training code.
+
+## Evaluation output looks incomplete
+
+`evaluate.py` writes two files:
+
+- the per-sample rows at the path passed to `--output`
+- the aggregate summary at the same path with suffix `.summary.json`
+
+`compare_runs.py` expects summary JSON files, not the raw per-sample JSONL.

@@ -1,0 +1,11 @@
+{
+  "extends": "algorithm.dr_cppo_constant.yaml",
+  "reward_config": {
+    "failure_reward": -10.0,
+    "iou_coef": 0.0,
+    "cd_coef": 0.0,
+    "auc_coef": 0.0,
+    "aoc_gms_coef": 10.0,
+    "r_mode": "10_iou"
+  }
+}

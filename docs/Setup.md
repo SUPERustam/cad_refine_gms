@@ -1,38 +1,124 @@
-1. Create `.env` file in the root directory of the project.
-```bash
-COMET_API_KEY= # your Comet API key
-COMET_PROJECT_NAME= # your Comet project name
-COMET_WORKSPACE= # your Comet workspace name
-HF_TOKEN= # your Hugging Face token
-```
+# Setup
 
-2. Create some dirs
-```bash
-mkdir -p rl_checkpoints/ # for saving RL checkpoints
-mkdir -p checkpoints/ # for saving SFT checkpoints
-mkdir -p logs_rl/ # for saving logs from the RL training
-mkdir -p slurm_logs/ # for saving logs from the SLURM training
-```
+This repo is driven by profile documents under `configs/` and writes run state to the filesystem. The codebase currently assumes a local machine profile similar to `configs/machine.local.yaml`.
 
-3. Prepare the Dataset
-You need a pre-rendered HuggingFace dataset. This is created using `create_hf_dataset.py`.
-- Set `STLS_ROOT` to the folder containing your STLs.
-- Set `SPLIT` to the path of the txt file containing validation split folder names.
-- Run `python create_hf_dataset.py`.
+## Environment variables
 
-4. Setup `con
+No `.env` file is required for the basic local workflow.
 
-## Reinforcement Learning (RL)
-
-For detailed information on the RL implementation and how to run it, see:
-- [RL Theory](RL_Theory.md): Explains the GRPO/CPPO algorithm and reward logic.
-- [RL Practical Guide](RL_Practical.md): Instructions for launching training 
-- [Troubleshooting](Troubleshooting.md): Troubleshooting guide.
-
-4. `train_loop_dp_*.sh` scripts are used to launch training in a loop. They are responsible for launching the vllm server and the training script.
+Set environment variables only for integrations you use:
 
 ```bash
-BASE_DIR= # path for saving RL checkpoints
-CHECKPOINT= # path for saving SFT checkpoint
-RUN_NAME= # name for the run, for the experiment tracking
+export HF_TOKEN=...
+export COMET_API_KEY=...
+export COMET_PROJECT_NAME=...
+export COMET_WORKSPACE=...
 ```
+
+`configs/machine.local.yaml` currently keeps Comet disabled, so the Comet variables are optional unless you enable that integration in your machine or runtime config.
+
+## Expected local directories
+
+The default local machine profile points at:
+
+- `./runs` for run directories
+- `./.cache/cad_rl` for cacheable artifacts
+
+Training creates run-local subdirectories for `checkpoints/`, `artifacts/`, and `logs/` automatically.
+
+## Profile layout
+
+Experiment profiles compose five component configs:
+
+- `task`
+- `model`
+- `algorithm`
+- `trainer`
+- `machine`
+
+The resolver supports:
+
+- `extends` chains for layered profiles
+- component references such as `task: "task.cadquery_v1.yaml"`
+- nested `overrides` blocks
+- `runtime` values that are carried into the resolved run contract
+
+The main entrypoint examples are:
+
+- `configs/experiment.demo.yaml`
+- `configs/experiment.dr_cppo_constant.yaml`
+- `configs/experiment.dr_cppo_cosine.yaml`
+- `configs/experiment.dr_cppo_gms.yaml`
+- `configs/experiment.dr_cppo_aoc_gms.yaml`
+
+To inspect the fully resolved training contract:
+
+```bash
+python train.py --experiment configs/experiment.demo.yaml --dry-run
+```
+
+## Dataset preparation
+
+Training and inference expect prepared Hugging Face datasets on disk. The current task profile points both `train` and `val` at:
+
+```text
+datasets/rendered_cadevolve_normalized_1_1_fixed
+```
+
+Create a prepared dataset with the supported flags in `prepare_dataset.py`:
+
+```bash
+python prepare_dataset.py \
+  --split train \
+  --output-dir datasets/rendered_cadevolve_normalized_1_1_fixed
+```
+
+Useful optional flags:
+
+- `--raw-root` to point at the STL source root
+- `--pickle-file` to provide annotations
+- `--size` to cap the sample count
+- `--shuffle` to shuffle source examples
+- `--task-id` and `--model-id` to override manifest metadata
+
+The script writes a serialized HF dataset plus `manifest.json` into the output directory.
+
+Dataset preparation is the only part of the repo that depends on the STL visualization helper path under `cad_rl.data`. If your environment does not provide `vis_for_norm_parts`, `prepare_dataset.py` now fails with a targeted error explaining that the dependency is optional and dataset-prep-specific.
+
+## Repo boundary
+
+The supported root Python files are intentionally limited to:
+
+- `prepare_dataset.py`
+- `train.py`
+- `resume_train.py`
+- `infer.py`
+- `build_meshes.py`
+- `evaluate.py`
+- `compare_runs.py`
+
+Reusable imports should come from `cad_rl/...`, not from root-level modules or the current working directory.
+
+## Training entrypoints
+
+Start a run:
+
+```bash
+python train.py --experiment configs/experiment.demo.yaml
+```
+
+Resume from the registry-managed checkpoint set:
+
+```bash
+python resume_train.py \
+  --experiment configs/experiment.demo.yaml \
+  --checkpoint latest
+```
+
+`--checkpoint` accepts `latest`, `best`, a numeric step, or an explicit checkpoint path.
+
+## Related docs
+
+- [RL Practical Guide](RL_Practical.md)
+- [RL Theory](RL_Theory.md)
+- [Troubleshooting](Troubleshooting.md)

@@ -1,6 +1,6 @@
 # Reinforcement Learning Theory
 
-This document explains the theoretical framework and algorithmic implementation of Reinforcement Learning (RL) in this project.
+This document explains the current RL design implemented in this repo. `PLANS.md` describes the architecture target; this page focuses on the behavior already present in the code and configs.
 
 ## Overview
 
@@ -8,7 +8,7 @@ The goal of RL in this project is to fine-tune a Vision-Language Model (VLM) to 
 
 ## The RL Loop
 
-The project uses a variant of **Group Relative Policy Optimization (GRPO)**, enhanced with a **CPPO (Clipped PPO)** top-K selection mechanism.
+The training stack uses a variant of **Group Relative Policy Optimization (GRPO)** with a top-sample **CPPO** selection step.
 
 ```mermaid
 graph TD
@@ -30,23 +30,23 @@ The rewards $r_i$ for these $G$ completions are computed, and then normalized wi
 
 This group-relative approach removes the need for a separate value-function (critic) model, significantly reducing VRAM requirements.
 
-### 2. Top-K Selection (CPPO Variant)
-To improve training stability and focus on the most informative samples, we implement a custom selection mechanism in `grpo_loss.py`:
+### 2. Top-sample selection (CPPO variant)
+To improve training stability and focus on the most informative samples, the frozen training core keeps a custom selection mechanism:
 - We select the `top_samples` (e.g., 4 out of 16) that have the highest **absolute advantage**.
 - These samples represent the "best" and "worst" performers relative to the group mean, providing the strongest gradient signal.
 
-### 3. Reward Function
-The reward is the ground truth of the RL process. In this project, it is defined in `rewards.py`:
+### 3. Reward function
+The reward is the optimization target for the RL loop. The current configs expose reward settings through `algorithm.reward_config`:
 - **Execution Check**: If the code fails to execute or doesn't produce a valid mesh, it receives a `failure_reward` (e.g., -10 or 0).
 - **Geometric Metrics**: If execution succeeds, we compute:
     - **IoU (Intersection over Union)**: Volumetric overlap between predicted and GT meshes.
     - **Chamfer Distance**: Point-cloud similarity.
     - **AOC-GMS**: Area Over the Curve of Global Multiview Similarity (surface normal alignment).
-- **Clipping**: Final rewards are typically clipped to a range like $[-10, 10]$.
+- **Mode selection**: the shipped profiles cover constant-scheduler, cosine-scheduler, GMS-weighted, and AOC-GMS-weighted variants.
 
 ## Distributed Execution and vLLM
 
-To accelerate the bottleneck of generation, we use **vLLM** in a server-client architecture.
+Generation is designed around vLLM-enabled training configs, with runtime and machine settings controlling ports and environment setup.
 
 ```mermaid
 sequenceDiagram
@@ -70,3 +70,15 @@ sequenceDiagram
 - **Importance Sampling**: We support both `token` and `sequence` level importance sampling. `sequence` level averages the log-probability ratio over the completion length before applying the PPO clip.
 - **Alignment**: `steps_per_generation` is aligned with `gradient_accumulation_steps` to ensure that the "old" log-probabilities used in the PPO ratio are consistent with the model version that generated them.
 - **VLM Handling**: The trainer handles multimodal inputs (images + text) by passing pixel values and grid information through the rollout and loss computation phases.
+- **Frozen core boundary**: the repo redesign keeps the algorithm math and reward semantics in a frozen core, while the config layer, run registry, and downstream scripts wrap that behavior with cleaner interfaces.
+
+## Current config variants
+
+The repo currently ships these experiment and algorithm variants:
+
+- `experiment.dr_cppo_constant.yaml`
+- `experiment.dr_cppo_cosine.yaml`
+- `experiment.dr_cppo_gms.yaml`
+- `experiment.dr_cppo_aoc_gms.yaml`
+
+These vary scheduler or reward weighting without changing the supported public script surface.

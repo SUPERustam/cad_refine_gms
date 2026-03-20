@@ -1,0 +1,8 @@
+{
+  "extends": "algorithm.dr_cppo_constant.yaml",
+  "scheduler_policy": "cosine",
+  "trainer_kwargs": {
+    "clip_cov": false,
+    "top_samples": 4
+  }
+}

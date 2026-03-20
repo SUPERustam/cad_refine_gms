@@ -1,45 +1,120 @@
+# CAD RL
 
-## Train with HuggingFace TRL and vLLM acceleration
+Profile-driven CAD RL research repo with a filesystem run registry and a frozen Dr.CPPO/GRPO training core.
 
-### -> Create mesh dataset by pre-rendering the stls and serializing the images
-in `create_hf_dataset.py` 
+## Supported scripts
 
-change `STLS_ROOT` - main folder containing STLs in subfolders, `SPLIT` - path to the txt file that contains the folder names of the validation split to run training on
+- `prepare_dataset.py`
+- `train.py`
+- `resume_train.py`
+- `infer.py`
+- `build_meshes.py`
+- `evaluate.py`
+- `compare_runs.py`
 
-The dataset is created in the format of STLImageToCode dataset, with the 7 angles isotopic rendering. To change the original dataset format simply add a format to multiview_dataset.py
-run `python create_hf_dataset.py`
+Everything else is internal package code under `cad_rl/`. Root-level reusable modules are no longer part of the supported interface.
 
-This will take a bit of time.
-the stls are being rendered in PIL image format, which is then serialized into Arrow dataset. There is also additional pre-processing to match the image padding being done by qwen in process_vision_info, with the fetch_image function
+## Package layout
 
-### -> Launch training with vLLM generator worker
-in `rl_train.py`
+The repo now follows one boundary rule:
 
-set `HF_DATASET` for the path to the generated HF dataset
+- thin public CLI entrypoints stay in the repo root
+- reusable Python code lives under `cad_rl/`
 
-Training can be launched on multiple GPU, based on the specified config : 
-`CUDA_VISIBLE_DEVICES=1,2,3 accelerate launch rl_train.py --config config.yaml`
+Current internal layout:
 
-Training arguments to modify the defaults and the config can be passed via the command line : 
+- `cad_rl/algorithms`: GRPO trainer, CPPO loss, reward wiring
+- `cad_rl/metrics`: async metric execution, mesh evaluation helpers, AOC-GMS
+- `cad_rl/data`: prepared dataset helpers and dataset-prep rendering path
+- `cad_rl/config`, `cad_rl/runtime`, `cad_rl/pipelines`, `cad_rl/specs`, `cad_rl/models`: config resolution, run registry, workflows, schemas, and model adapters
 
-`CUDA_VISIBLE_DEVICES=1,2,3 accelerate launch rl_train.py --config config.yaml --importance_sampling_level sequence --output_dir test --run_name test --use_vllm false  --temperature 1 --learning_rate 3e-5 --save_steps 50 --failure_reward 0.0 --top_k 50 --max_completion_length 700 --num_generations 16 --top_samples 4 --max_prompt_length 200 --per_device_train_batch_size 4 --generation_batch_size 192"`
+## Config model
 
-Additional explanations on GRPO config arguments are here 
-https://huggingface.co/docs/trl/grpo_trainer#trl.GRPOConfig 
+Experiment profiles under `configs/` compose five main documents:
 
-I recommend setting `generation_batch_size` to the maximum number of samples you'll have per batch, as vLLM uses kv caches to reduce memory and can handle many prompts in parallel. That is set `generation_batch_size` to **per_device_train_batch_size * num_generations * num_gpus** (4 * 16 * 3 = 192 in this example)
+- `task`
+- `model`
+- `algorithm`
+- `trainer`
+- `machine`
 
-Some additional arguments to consider : 
-- print_sample_steps : how often to print ou top generated samples, set -1 for never
-- report_to : which logger to use, defaults to comet_ml, can use wandb instead. To use either, corresponding env variables must be set, for example 
+`train.py` and `resume_train.py` resolve the experiment profile, materialize the resolved config into the run directory, and use that resolved contract as the source of truth for resume and downstream analysis.
 
-`export COMET_WORKSPACE=marinabar && export COMET_API_KEY=xxxx && export COMET_PROJECT_NAME=cad`
-- logging_steps : how often to log metrics to terminal and to external logger
+The config resolver supports `extends`, component references, and nested `overrides`. Current examples include:
 
-To accelerate generation of training samples, use an external vLLM generator server 
-1. first launch via `CUDA_VISIBLE_DEVICES=0 trl vllm-serve --model Qwen/Qwen2-VL-2B-Instruct --max_model_len 1000`
-where max_model_len is the prompt length + max_completion_length 
-2. launch training without --use_vllm false (removing is equivalent to  --use_vllm true) 
+- `configs/experiment.demo.yaml`
+- `configs/experiment.dr_cppo_constant.yaml`
+- `configs/experiment.dr_cppo_cosine.yaml`
+- `configs/experiment.dr_cppo_gms.yaml`
+- `configs/experiment.dr_cppo_aoc_gms.yaml`
 
+## Quickstart
 
-__Note : during training, to fit a bigger batch size if OOM arises, it is possible to try setting `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`__
+Prepare a serialized Hugging Face dataset:
+
+```bash
+python prepare_dataset.py --split train
+```
+
+`prepare_dataset.py` is a thin wrapper over `cad_rl.data`. Its rendering path may require the optional `vis_for_norm_parts` dependency depending on your dataset-prep environment.
+
+Inspect the fully resolved training contract without launching training:
+
+```bash
+python train.py --experiment configs/experiment.demo.yaml --dry-run
+```
+
+Start a run:
+
+```bash
+python train.py --experiment configs/experiment.demo.yaml
+```
+
+Resume from the filesystem checkpoint registry:
+
+```bash
+python resume_train.py \
+  --experiment configs/experiment.demo.yaml \
+  --checkpoint latest
+```
+
+Run the post-training workflow:
+
+```bash
+python infer.py \
+  --task-profile configs/task.cadquery_v1.yaml \
+  --model-profile configs/model.qwen2_vl.yaml \
+  --checkpoint /path/to/checkpoint \
+  --output outputs/inference.jsonl
+
+python build_meshes.py \
+  --input outputs/inference.jsonl \
+  --output-dir outputs/meshes
+
+python evaluate.py \
+  --input outputs/inference.jsonl \
+  --output outputs/eval.jsonl
+
+python compare_runs.py \
+  --summaries outputs/eval.summary.json other_run/eval.summary.json \
+  --output outputs/compare.json
+```
+
+## Run artifacts
+
+Training materializes a run directory under the machine profile `run_root`, for example `./runs/<run_id>/`, with:
+
+- `resolved_config.json`
+- `manifest.json`
+- `checkpoints/`
+- `artifacts/`
+- `logs/`
+
+Optional YAML mirrors are also written when `PyYAML` is available.
+
+## Docs
+
+- `docs/Setup.md`: environment, profiles, and dataset prep.
+- `docs/RL_Practical.md`: training, resume, inference, and artifact flow.
+- `docs/RL_Theory.md`: frozen algorithm core and config variants.
+- `docs/Troubleshooting.md`: current repo-scoped failure modes.

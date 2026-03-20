@@ -1,64 +1,165 @@
 # Reinforcement Learning Practical Guide
 
-This document provides practical instructions on how to configure, run, and monitor RL training in this project.
+This repo exposes a clean Python script surface. Training, resume, and downstream analysis are driven by resolved profiles and filesystem artifacts, not by ad hoc shell wrappers.
 
-## Prerequisites
+## Before you run anything
 
-1.  **Environment, Configuration and Dataset**: Follow the steps in [Setup Guide](Setup.md) to activate the environment, set up the `.env` file, create necessary directories, and prepare the dataset.
+Follow [Setup](Setup.md) first:
 
-## Running Training
+- prepare the HF dataset on disk
+- confirm the `task`, `model`, `algorithm`, `trainer`, and `machine` profiles you want
+- inspect the resolved contract with `--dry-run` before launching long jobs
 
-### 1. The "Loop" Script (Recommended)
-Use one of the `train_loop_dp_*.sh` scripts. These scripts handle the vLLM server lifecycle and automatic restarts/resuming.
+## Training
+
+Launch a run from an experiment profile:
 
 ```bash
-# Example: Launching the GMS training loop
-bash train_loop_dp_gms.sh
+python train.py --experiment configs/experiment.demo.yaml
 ```
 
-**What the loop script does:**
-1.  Starts a `vllm-serve` instance on a dedicated GPU (e.g., `CUDA_VISIBLE_DEVICES=1`).
-2.  Waits for the server to be ready.
-3.  Launches `accelerate launch rl_train_cos_sched.py` on the remaining GPUs.
-4.  If the training crashes or finishes, it kills the vLLM server and restarts from the latest checkpoint.
+Inspect the resolved contract without starting training:
 
-### 2. Manual Launch
-For debugging, you can launch directly:
 ```bash
-CUDA_VISIBLE_DEVICES=2,3,4 accelerate launch rl_train.py \
-    --config configs/config.yaml \
-    --run_name my_experiment \
-    --output_dir rl_checkpoints/my_experiment
+python train.py --experiment configs/experiment.demo.yaml --dry-run
 ```
 
-## Key Configuration Parameters
+The training pipeline resolves the profile, fingerprints the prepared training dataset when possible, creates a run directory under the machine profile `run_root`, and writes:
 
-These are found in `configs/*.yaml` or passed as CLI arguments:
+- `resolved_config.json`
+- `manifest.json`
+- `checkpoints/`
+- `artifacts/`
+- `logs/`
 
-| Parameter | Description | Recommended |
-| :--- | :--- | :--- |
-| `num_generations` ($G$) | Number of completions per prompt. | 16 |
-| `top_samples` ($K$) | Number of samples to actually train on (CPPO). | 4 |
-| `per_device_train_batch_size` | Number of *prompts* per GPU. | 1 or 4 (depends on VRAM) |
-| `generation_batch_size` | Total completions in one vLLM call. | $G \times \text{batch\_size} \times \text{GPUs}$ |
-| `max_completion_length` | Max tokens for CadQuery code. | 3000 - 3500 |
-| `importance_sampling_level` | `token` or `sequence`. | `token` |
-| `failure_reward` | Reward given if code fails to run. | 0 or -10 |
-| `pool_size` | Number of CPU workers for CadQuery execution. | 16 - 40 |
+If `PyYAML` is available, YAML mirrors are written next to the JSON files.
+
+## Resume
+
+Resume uses the filesystem run registry instead of shell logic:
+
+```bash
+python resume_train.py \
+  --experiment configs/experiment.demo.yaml \
+  --checkpoint latest
+```
+
+Supported checkpoint references:
+
+- `latest`
+- `best`
+- a numeric step such as `150`
+- an explicit checkpoint path
+
+`latest` is resolved from `checkpoints/latest.txt` when present, otherwise from the checkpoint index.
+
+## Important config fields
+
+The training contract comes from the resolved experiment profile. The current code paths depend most on:
+
+| Field | Meaning |
+| :--- | :--- |
+| `task.prepared_datasets` | On-disk HF dataset paths by split |
+| `task.output_var_name` | Expected CadQuery output variable |
+| `model.base_checkpoint` | Base or SFT checkpoint family |
+| `model.processor_kwargs` | Qwen processor settings |
+| `algorithm.reward_config` | Reward coefficients and failure behavior |
+| `algorithm.trainer_kwargs.top_samples` | Top-sample CPPO selection size |
+| `algorithm.scheduler_policy` | Current scheduler variant, for example `constant` or `cosine` |
+| `trainer.num_generations` | Number of completions per prompt |
+| `trainer.max_completion_length` | Completion token cap |
+| `machine.run_root` | Base directory for run artifacts |
+| `machine.environment` | Environment variables injected before trainer setup |
+
+## Inference
+
+Inference currently loads a task profile and model profile directly:
+
+```bash
+python infer.py \
+  --task-profile configs/task.cadquery_v1.yaml \
+  --model-profile configs/model.qwen2_vl.yaml \
+  --checkpoint /path/to/checkpoint \
+  --split val \
+  --output outputs/inference.jsonl
+```
+
+Useful flags:
+
+- `--batch-size`
+- `--num-workers`
+
+The output is JSONL. Each row contains the task id, source mesh path, output variable name, raw model generation, wrapped code, timing, and execution placeholder metadata.
+
+## Mesh building
+
+Materialize meshes from inference JSONL:
+
+```bash
+python build_meshes.py \
+  --input outputs/inference.jsonl \
+  --output-dir outputs/meshes \
+  --var-name result
+```
+
+The mesh pipeline writes:
+
+- `outputs/meshes/mesh_records.jsonl`
+- `outputs/meshes/meshes/sample_*.stl`
+
+Rows are marked `success` or `invalid_code`.
+
+## Evaluation
+
+Evaluate raw generations against the source mesh paths:
+
+```bash
+python evaluate.py \
+  --input outputs/inference.jsonl \
+  --output outputs/eval.jsonl \
+  --var-name result \
+  --pool-size 16
+```
+
+The evaluation pipeline writes:
+
+- per-sample rows to the path passed to `--output`
+- an aggregate summary next to it at `*.summary.json`
+
+Current summary fields include:
+
+- `samples`
+- `invalid_fraction`
+- `iou_mean`, `iou_median`, `iou_min`, `iou_max`
+- `cd_mean`, `cd_median`, `cd_min`, `cd_max`
+- `missing_sample_count`
+
+## Comparison
+
+Compare one or more summary files:
+
+```bash
+python compare_runs.py \
+  --summaries outputs/eval.summary.json other_run/eval.summary.json \
+  --output outputs/compare.json
+```
+
+The report contains:
+
+- `leaderboard`
+- `checkpoint_over_time`
+- `diff_report`
 
 ## Monitoring
 
-### 1. Metrics to Watch (Comet/WandB)
--   **`reward`**: The mean reward across the group. Should trend upwards.
--   **`reward_std`**: If this drops to zero, the model has collapsed to a single output.
--   **`entropy`**: Measures output diversity. If it drops too fast, increase `beta` or check learning rate.
--   **`clip_ratio/region_mean`**: Percentage of samples being clipped by PPO. Ideally 0.1 - 0.3.
--   **`completions/mean_length`**: Watch for "reward hacking" where the model generates extremely long/short code to exploit the reward.
+Training writes the authoritative run state to disk. Comet is a mirror layer when enabled, not the control plane for resume.
 
-### 2. Log Files
--   **Main log**: `logs_rl/RUN_NAME.log` (Training progress and sampled code).
--   **vLLM log**: `logs_rl/vllm_server.log` (Check this if generation hangs).
+The most useful signals to watch in training logs remain:
 
-## Troubleshooting
+- reward trend
+- reward variance collapse
+- entropy collapse
+- clipping behavior
+- completion length drift
 
-See [Troubleshooting](Troubleshooting.md) for more details.
+Use [Troubleshooting](Troubleshooting.md) when a run resolves cleanly but fails at data loading, checkpoint selection, generation, or metric execution time.

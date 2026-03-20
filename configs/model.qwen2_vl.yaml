@@ -1,0 +1,20 @@
+{
+  "model_family_adapter_id": "qwen_family",
+  "base_checkpoint": "Qwen/Qwen2-VL-2B-Instruct",
+  "sft_checkpoint": null,
+  "processor_name": "Qwen/Qwen2-VL-2B-Instruct",
+  "processor_kwargs": {
+    "trust_remote_code": true,
+    "resized_width": 476,
+    "resized_height": 952,
+    "padding_side": "left"
+  },
+  "generation_defaults": {
+    "do_sample": true,
+    "temperature": 0.7,
+    "top_p": 0.95,
+    "top_k": 50,
+    "max_new_tokens": 4200
+  },
+  "trust_remote_code": true
+}

@@ -1,0 +1,6 @@
+{
+  "extends": "experiment.dr_cppo_constant.yaml",
+  "profile_id": "dr_cppo_aoc_gms",
+  "algorithm": "algorithm.dr_cppo_aoc_gms.yaml",
+  "trainer": "trainer.grpo_aoc_gms.yaml"
+}

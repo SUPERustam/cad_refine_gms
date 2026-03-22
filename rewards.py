@@ -7,7 +7,7 @@ import os
 _DEFAULT_VAR_NAME = os.getenv("METRICS_VAR_NAME", "result")
 _FALLBACK_VAR_NAME = os.getenv("METRICS_VAR_FALLBACK", "")
 
-def reward_from_metrics(cd: float, iou: float, auc: float = 0, mode: str = "default") -> float:
+def reward_from_metrics(cd: float, iou: float, auc: float = 0, auc_gms: float = None, mae_similarity: float = None, mode: str = "default") -> float:
     if cd is None or math.isnan(cd) or cd <= 0: cd = 1.0
     if iou is None or (isinstance(iou, float) and math.isnan(iou)):
         iou = 0.0
@@ -23,56 +23,66 @@ def reward_from_metrics(cd: float, iou: float, auc: float = 0, mode: str = "defa
     elif mode == "iou":
         r = float(iou)
     elif mode == "10_normal_auc":
-        r  = 10.0 * auc
+        r = 10.0 * auc
+    elif mode == "10_auc_gms":
+        r = 10.0 * float(auc_gms) if auc_gms is not None else 0.0
+    elif mode == "10_mae_render":
+        r = 10.0 * float(mae_similarity) if mae_similarity is not None else 0.0
     elif mode == "5nc_5iou":
-        r  = 5 * reward_from_auc_blend(auc) + 5 *iou
+        r = 5 * reward_from_auc_blend(auc) + 5 * iou
     else:
         r = 10.0 * float(iou)
     return float(np.clip(r, -10.0, 10.0))
 
 
-def get_reward_function(failure_reward, iou_coef=10, cd_coef=0, auc_coef=0, aoc_gms_coef=0, nc_params=None, mode="10_iou", print_every=50, var_name=None):
+def get_reward_function(failure_reward, iou_coef=10, cd_coef=0, auc_coef=0, aoc_gms_coef=0, mae_coef=0, nc_params=None, mode="10_iou", print_every=50, var_name=None):
     def combined_reward(completions, mesh_path, trainer_state=None, **kwargs):
         vn = var_name or _DEFAULT_VAR_NAME
-        # Get individual rewards
         rewards = []
-        """
-        if nc_params.get("get_nc") == True:
-            updt_tol = update_step_tol(step=getattr(trainer_state, "global_step", 0))
-            nc_params["tol"] = updt_tol"""
-
         pred_metrics = get_metrics_from_texts(
             completions, mesh_path, nc_params, var_name=vn)
         for m in pred_metrics:
             reward = 0
             iou = m["iou"] if m is not None else None
-            cd =  m["cd"] if m is not None else None
-            auc =  m["auc"] if m is not None else None
-            if iou is None:
+            cd = m["cd"] if m is not None else None
+            auc = m["auc"] if m is not None else None
+            use_mae_render = (
+                nc_params
+                and nc_params.get("get_mae_render")
+                and mae_coef > 0
+            )
+            use_aoc_gms = (
+                nc_params
+                and nc_params.get("get_aoc_gms")
+                and aoc_gms_coef > 0
+            )
+            if use_mae_render:
+                mae_val = m.get("mae_similarity") if m is not None else None
+                if mae_val is None or (isinstance(mae_val, float) and math.isnan(mae_val)):
+                    reward = failure_reward
+                else:
+                    raw = reward_from_metrics(
+                        cd=cd or 1.0, iou=iou or 0.0, auc=auc or 0.0,
+                        mae_similarity=mae_val, mode="10_mae_render",
+                    )
+                    reward = float(np.clip((mae_coef / 10.0) * raw, -10.0, 10.0))
+            elif use_aoc_gms:
+                auc_gms_value = m.get("auc_gms") if m is not None else None
+                if auc_gms_value is None:
+                    reward = failure_reward
+                else:
+                    gms_reward = reward_from_metrics(
+                        cd=cd or 1.0, iou=iou or 0.0, auc=auc or 0.0,
+                        auc_gms=auc_gms_value, mode="10_auc_gms",
+                    )
+                    reward = float(np.clip((aoc_gms_coef / 10.0) * gms_reward, -10.0, 10.0))
+            elif iou is None:
                 reward = failure_reward
             else:
-                use_aoc_gms = (
-                    nc_params
-                    and nc_params.get("get_aoc_gms")
-                    and aoc_gms_coef > 0
-                )
-                if use_aoc_gms:
-                    auc_gms_value = m.get("auc_gms")
-                    if auc_gms_value is None:
-                        reward = failure_reward
-                    else:
-                        gms_reward = reward_from_metrics(
-                            cd,
-                            iou,
-                            auc_gms=auc_gms_value,
-                            mode="10_auc_gms",
-                        )
-                        reward = float(
-                            np.clip((aoc_gms_coef / 10.0) * gms_reward, -10.0, 10.0)
-                        )
-                else:
-                    reward = reward_from_metrics(cd, iou, auc=auc, mode=None)
-            if not math.isfinite(reward): reward = failure_reward
+                effective_mode = mode if mode and mode not in ("10_mae_render", "10_auc_gms") else "10_iou"
+                reward = reward_from_metrics(cd, iou, auc=auc, mode=effective_mode)
+            if not math.isfinite(reward):
+                reward = failure_reward
             rewards.append(float(reward))
 
         # ---- print one sample every 50 steps ----

@@ -26,7 +26,7 @@ graph TD
 For each prompt in a batch, the model generates $G$ independent completions (rollouts). In this project, $G$ is typically set to 16.
 The rewards $r_i$ for these $G$ completions are computed, and then normalized within the group to produce advantages $A_i$:
 
-\[ A_i = \frac{r_i - \text{mean}(r)}{\text{std}(r) + \epsilon} \]
+$A_i = \frac{r_i - \text{mean}(r)}{\text{std}(r) + \epsilon}$
 
 This group-relative approach removes the need for a separate value-function (critic) model, significantly reducing VRAM requirements.
 

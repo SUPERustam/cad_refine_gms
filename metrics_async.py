@@ -13,6 +13,38 @@ import numpy as np
 
 import os
 
+# Process-local singleton for MAE render Plotter (each forked worker / child has its own copy).
+# Do not share across processes; safe with forkserver pool + per-task fork children.
+_MAE_PLOTTER = None
+
+
+def _get_mae_plotter():
+    """Lazily create and reuse one Plotter per process to avoid repeated init cost."""
+    global _MAE_PLOTTER
+    if _MAE_PLOTTER is None:
+        from benchmark.visualization_iso import Plotter
+
+        _MAE_PLOTTER = Plotter()
+    return _MAE_PLOTTER
+
+
+def _reload_mae_plotter():
+    """Reset PyVista plotter state after a failed render (same pattern as benchmark/inference_vllm.py)."""
+    global _MAE_PLOTTER
+    if _MAE_PLOTTER is None:
+        return
+    try:
+        _MAE_PLOTTER.reload()
+    except Exception:
+        pass
+
+
+def _drop_mae_plotter():
+    """Force a fresh Plotter on next _get_mae_plotter() if reload is not enough."""
+    global _MAE_PLOTTER
+    _MAE_PLOTTER = None
+
+
 _REMAP_RULES = [
     (
         "/home/jovyan/shares/SR008.nfs2/users/CAD/cadexp/datasets/",
@@ -82,6 +114,10 @@ def init_worker():
     globals()['trimesh'] = trimesh
     globals()['cKDTree'] = cKDTree
     globals()['cq'] = cq
+    # Optional: create Plotter once per pool worker when MAE is always used (reduces per-fork init).
+    # Off by default — PyVista state after fork can be finicky; enable via env if needed.
+    if os.environ.get("METRICS_PREINIT_MAE_PLOTTER", "").lower() in ("1", "true", "yes"):
+        _get_mae_plotter()
 
 
 def compute_normals_metrics(gt_mesh, pred_mesh, tol=1, n_points=8192, visualize=False):
@@ -243,6 +279,68 @@ def transform_pred_mesh(mesh):
     mesh.apply_transform(trimesh.transformations.translation_matrix([0.5, 0.5, 0.5]))
     return mesh
 
+def mae_similarity(A, B):
+    """Compute 1 - MAE/255 for two same-shape arrays (e.g. RGB images). Higher = more similar."""
+    if A.shape != B.shape:
+        raise ValueError("Matrices must have the same shape")
+    mae = np.mean(np.abs(A - B))
+    return float(1.0 - mae / 255.0)
+
+
+def _render_mesh_to_array(mesh_path, plotter=None):
+    """Render a mesh from file path to RGB numpy array. Returns (H, W, 3) uint8."""
+    p = plotter if plotter is not None else _get_mae_plotter()
+
+    def _do_render(pl):
+        img = np.array(pl._get_img(mesh_path, pl.cmap_gt, apply_augs=False, color=(0, 255, 0), scale=True))[:714, :, 1] # it's important to remove isometric view
+        return img
+
+    try:
+        return _do_render(p)
+    except Exception:
+        # Same recovery as benchmark/inference_vllm.py: reload plotter, then retry once.
+        try:
+            p.reload()
+        except Exception:
+            pass
+        try:
+            return _do_render(p)
+        except Exception:
+            if plotter is None:
+                _drop_mae_plotter()
+            raise
+
+
+def _compute_mae_render_similarity(gt_file, pred_mesh):
+    """
+    Render GT (from path) and pred (trimesh) to same-size images and compute mae_similarity.
+    pred_mesh is assumed to be normalized (e.g. transform_mesh_0_1).
+    Uses process-global Plotter via _get_mae_plotter().
+    """
+    import tempfile
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".stl", delete=False) as f:
+            pred_path = f.name
+        pred_mesh.export(pred_path)
+        try:
+            gt_arr = _render_mesh_to_array(gt_file)
+            pred_arr = _render_mesh_to_array(pred_path)
+            if gt_arr.shape != pred_arr.shape:
+                return None
+            return mae_similarity(gt_arr, pred_arr)
+        finally:
+            try:
+                os.unlink(pred_path)
+            except OSError:
+                pass
+    except Exception:
+        try:
+            _reload_mae_plotter()
+        except Exception:
+            pass
+        return None
+
+
 def compound_to_mesh(compound):
     vertices, faces = compound.tessellate(0.001, 0.1)
     return trimesh.Trimesh([(v.x, v.y, v.z) for v in vertices], faces)
@@ -270,11 +368,12 @@ def get_metrics_from_single_text(text, gt_file, n_points, nc_params=None, var_na
     try:
         pred_mesh = code_to_mesh_and_brep_less_safe(text, var_name)
     except Exception as e:
-        return dict(file_name=base_file, cd=None, iou=None, auc=None)
-    
+        return dict(file_name=base_file, cd=None, iou=None, auc=None, auc_gms=None, mae_similarity=None)
+
     if pred_mesh is None:
-        return dict(file_name=base_file, cd=None, iou=None, auc=None)
-    cd, iou, auc, auc_gms = None, None, None, None
+        return dict(file_name=base_file, cd=None, iou=None, auc=None, auc_gms=None, mae_similarity=None)
+    cd, iou, auc, auc_gms, mae_similarity_val = None, None, None, None, None
+    gt_mesh = None
     try: 
         gt_mesh = trimesh.load_mesh(gt_file)
         gt_mesh = transform_mesh_0_1(gt_mesh)
@@ -316,6 +415,12 @@ def get_metrics_from_single_text(text, gt_file, n_points, nc_params=None, var_na
                 except Exception as e:
                     print(f"AOC-GMS error for {base_file}: {e}", flush=True)
 
+            if nc_params and nc_params.get("get_mae_render", False):
+                try:
+                    mae_similarity_val = _compute_mae_render_similarity(gt_file, pred_mesh)
+                except Exception as e:
+                    print(f"MAE render error for {base_file}: {e}", flush=True)
+
     except Exception as e:
         print(f"error for {base_file}: {e}", flush=True)
         pass
@@ -327,7 +432,7 @@ def get_metrics_from_single_text(text, gt_file, n_points, nc_params=None, var_na
                 del pred_mesh
         except:
             pass
-    return dict(file_name=base_file, cd=cd, iou=iou, auc=auc, auc_gms=auc_gms)
+    return dict(file_name=base_file, cd=cd, iou=iou, auc=auc, auc_gms=auc_gms, mae_similarity=mae_similarity_val)
 
 
 
@@ -394,7 +499,7 @@ def get_metrics_from_texts(texts, meshes, nc_params=None, max_workers=None, var_
         output = res.get()
         if output == "__TIMEOUT__" or output == "__CRASH__":
             print(f"[{output}] metrics task computation ERROR, skipping", flush=True)
-            results.append(dict(file_name=None, cd=None, iou=None, auc=None))
+            results.append(dict(file_name=None, cd=None, iou=None, auc=None, auc_gms=None, mae_similarity=None))
         else:
             results.append(output)
 

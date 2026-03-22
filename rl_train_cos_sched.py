@@ -30,6 +30,7 @@ class RewardArgs:
     cd_coef: float = 0.0
     auc_coef: float = 0.0
     aoc_gms_coef: float = 0.0
+    mae_coef: float = 0.0
     get_nc: bool = False
     # how many points to sample from surface
     nc_n_points: int = 16384
@@ -47,6 +48,8 @@ class RewardArgs:
     aoc_gms_pc_cache_enable: bool = False
     aoc_gms_upper_bound_tol_rt: int = 25
     aoc_gms_autofix_sampling: bool = False
+    # ---- MAE render metric params ----
+    get_mae_render: bool = False
 
 @dataclass
 class TrainingArgs:
@@ -110,9 +113,19 @@ nc_params = {
     "aoc_gms_pc_cache_enable": rargs.aoc_gms_pc_cache_enable,
     "aoc_gms_upper_bound_tol_rt": rargs.aoc_gms_upper_bound_tol_rt,
     "aoc_gms_autofix_sampling": rargs.aoc_gms_autofix_sampling,
+    "get_mae_render": rargs.get_mae_render,
 }
-reward_fn = get_reward_function(failure_reward=rargs.failure_reward, iou_coef=rargs.iou_coef, cd_coef=rargs.cd_coef, 
-            auc_coef=rargs.auc_coef, aoc_gms_coef=rargs.aoc_gms_coef, nc_params=nc_params, mode=rargs.r_mode, print_every = rargs.print_sample_steps)
+reward_fn = get_reward_function(
+    failure_reward=rargs.failure_reward,
+    iou_coef=rargs.iou_coef,
+    cd_coef=rargs.cd_coef,
+    auc_coef=rargs.auc_coef,
+    aoc_gms_coef=rargs.aoc_gms_coef,
+    mae_coef=rargs.mae_coef,
+    nc_params=nc_params,
+    mode=rargs.r_mode,
+    print_every=rargs.print_sample_steps,
+)
 
 
 # those parameters will be passed to vllm generation trainer

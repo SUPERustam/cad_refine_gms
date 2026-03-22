@@ -48,7 +48,7 @@ def collate_fn(batch, processor):
     inputs["mesh_path"] = mesh_paths
     return inputs
 
-def evaluate(model, processor, ds, normalize="fixed", var_name='result'):
+def evaluate(model, processor, ds, normalize="fixed", var_name='result', nc_params=None):
     model.eval()
     device = next(model.parameters()).device
 
@@ -66,7 +66,7 @@ def evaluate(model, processor, ds, normalize="fixed", var_name='result'):
         drop_last=False,
     )
 
-    ious, cds = [], []
+    ious, cds, mae_sims = [], [], []
     n_incorrect, n_failed_intersect = 0, 0
     eos_token_id = processor.tokenizer.convert_tokens_to_ids("<|im_end|>")
     pad_token_id = processor.tokenizer.eos_token_id
@@ -102,7 +102,7 @@ def evaluate(model, processor, ds, normalize="fixed", var_name='result'):
             #texts = extract_assistant_text(decoded)
             t0 = time.perf_counter()
             #metrics_batch = run_texts(texts, batch["mesh_path"], var_name="result", normalize=normalize)
-            metrics_batch = get_metrics_from_texts(texts, batch["mesh_path"], var_name=var_name)
+            metrics_batch = get_metrics_from_texts(texts, batch["mesh_path"], nc_params=nc_params, var_name=var_name)
             print(f"metrics time: {time.perf_counter() - t0:.3f}s for {len(texts)} samples")
             #print(metrics_batch)
 
@@ -115,22 +115,29 @@ def evaluate(model, processor, ds, normalize="fixed", var_name='result'):
                     continue
                 ious.append(m["iou"])
                 cds.append(m["cd"])
+                if nc_params and nc_params.get("get_mae_render") and m.get("mae_similarity") is not None:
+                    mae_sims.append(m["mae_similarity"])
 
     mn = (lambda x: float(np.mean(x)) if len(x) else float("nan"))
     md = (lambda x: float(np.median(x)) if len(x) else float("nan"))
 
     print(f"IoU mean {mn(ious)}, median {md(ious)}")
     print(f"CD mean {mn(cds)}, median {md(cds)}")
+    if mae_sims:
+        print(f"MAE similarity mean {mn(mae_sims)}, median {md(mae_sims)}")
     print(f"Invalid generations fraction: {n_incorrect / len(ds):.6f}")
     print(f"Intersect failure fraction: {n_failed_intersect / len(ds):.6f}")
     print("=" * 50)
 
-    return {
+    out = {
         "ious": ious,
         "cds": cds,
         "invalid_frac": n_incorrect / len(ds),
         "intersect_fail_frac": n_failed_intersect / len(ds),
     }
+    if mae_sims:
+        out["mae_similarity"] = mae_sims
+    return out
 
 
 def main():
@@ -139,6 +146,8 @@ def main():
     parser.add_argument("--normalize", type=str, default="fixed", choices=["fixed", "mesh_extents"])
     parser.add_argument("--var_name", type=str, default=None,
                     help="Variable name holding final CAD object.")
+    parser.add_argument("--get_mae_render", action="store_true",
+                    help="Compute MAE render similarity metric (slower).")
     args = parser.parse_args()
 
     var_name = args.var_name or os.getenv("METRICS_VAR_NAME", "result")
@@ -177,20 +186,24 @@ def main():
         #pickle_file = "/workspace-SR008.nfs2/users/barannikov/cad_refine_rl/datasets/MCB_A_batch_groundtruth.pkl",
         shuffle=False) 
 
-    res = evaluate(model, processor, eval_ds, normalize=args.normalize, var_name=var_name)
+    nc_params = {"get_mae_render": args.get_mae_render} if args.get_mae_render else None
+    res = evaluate(model, processor, eval_ds, normalize=args.normalize, var_name=var_name, nc_params=nc_params)
     close_pool()
 
     mn = (lambda x: float(np.mean(x)) if len(x) else float("nan"))
     md = (lambda x: float(np.median(x)) if len(x) else float("nan"))
 
     metrics = {
-        "eval/img/IoU mean":   mn(res["ious"]),
-        "eval/img/CD mean":    mn(res["cds"]),
+        "eval/img/IoU mean": mn(res["ious"]),
+        "eval/img/CD mean": mn(res["cds"]),
         "eval/img/IoU median": md(res["ious"]),
-        "eval/img/CD median":  md(res["cds"]),
-        "eval/img/Invalid frac":  res["invalid_frac"],
+        "eval/img/CD median": md(res["cds"]),
+        "eval/img/Invalid frac": res["invalid_frac"],
         "eval/img/Intersect fail frac": res["intersect_fail_frac"],
     }
+    if "mae_similarity" in res:
+        metrics["eval/img/MAE similarity mean"] = mn(res["mae_similarity"])
+        metrics["eval/img/MAE similarity median"] = md(res["mae_similarity"])
 
     print("\n==== FINAL METRICS ====")
     print(json.dumps(metrics, indent=2))

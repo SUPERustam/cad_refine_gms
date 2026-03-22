@@ -25,14 +25,23 @@ class RewardArgs:
     iou_coef: float = 10.0
     cd_coef: float = 0.0
     auc_coef: float = 0.0
+    aoc_gms_coef: float = 0.0
+    mae_coef: float = 0.0
     get_nc: bool = False
-    # how many points to sample from surface
     nc_n_points: int = 16384
-    # what percentage of overall mesh extents to look for neighbors in
     nc_tol: int = 5
     print_sample_steps: int = 25
     pool_size: int = 16
     r_mode: str = "10_iou"
+    get_aoc_gms: bool = False
+    aoc_gms_n_points: int = 8192
+    aoc_gms_n_angles: int = 125
+    aoc_gms_rel_tol: float = 0.05
+    aoc_gms_cube_trick: bool = True
+    aoc_gms_pc_cache_enable: bool = False
+    aoc_gms_upper_bound_tol_rt: int = 25
+    aoc_gms_autofix_sampling: bool = False
+    get_mae_render: bool = False
 
 @dataclass
 class TrainingArgs:
@@ -81,6 +90,7 @@ nc_params = {
     "get_nc": rargs.get_nc,
     "n_points": rargs.nc_n_points,
     "tol": rargs.nc_tol,
+    "get_mae_render": rargs.get_mae_render,
     "get_aoc_gms": rargs.get_aoc_gms,
     "aoc_gms_n_points": rargs.aoc_gms_n_points,
     "aoc_gms_rel_tol": rargs.aoc_gms_rel_tol,
@@ -90,8 +100,17 @@ nc_params = {
     "aoc_gms_upper_bound_tol_rt": rargs.aoc_gms_upper_bound_tol_rt,
     "aoc_gms_autofix_sampling": rargs.aoc_gms_autofix_sampling,
 }
-reward_fn = get_reward_function(failure_reward=rargs.failure_reward, iou_coef=rargs.iou_coef, cd_coef=rargs.cd_coef, 
-            auc_coef=rargs.auc_coef, aoc_gms_coef=rargs.aoc_gms_coef, nc_params=nc_params, mode=rargs.r_mode, print_every = rargs.print_sample_steps)
+reward_fn = get_reward_function(
+    failure_reward=rargs.failure_reward,
+    iou_coef=rargs.iou_coef,
+    cd_coef=rargs.cd_coef,
+    auc_coef=rargs.auc_coef,
+    aoc_gms_coef=rargs.aoc_gms_coef,
+    mae_coef=rargs.mae_coef,
+    nc_params=nc_params,
+    mode=rargs.r_mode,
+    print_every=rargs.print_sample_steps,
+)
 
 
 # those parameters will be passed to vllm generation trainer

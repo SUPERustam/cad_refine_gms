@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import argparse
@@ -21,9 +22,11 @@ from pathlib import Path
 from multiview_dataset import STLImageToCode
 from qwen_vl_utils import process_vision_info
 
-DATAROOT = Path("/workspace-SR008.nfs2/users/zhemchuzhnikov/datasets/MCB_A_batch/groudtruth")
-#DATAROOT = Path("/workspace-SR008.nfs2/users/zhemchuzhnikov/vsevolod/datasets/fusion360_test_mesh")
-#DATAROOT = Path("/workspace-SR008.nfs2/users/zhemchuzhnikov/vsevolod/datasets/deepcad_test_mesh")
+DATAROOT = Path(
+    "/workspace-SR008.nfs2/users/zhemchuzhnikov/datasets/MCB_A_batch/groudtruth"
+)
+# DATAROOT = Path("/workspace-SR008.nfs2/users/zhemchuzhnikov/vsevolod/datasets/fusion360_test_mesh")
+# DATAROOT = Path("/workspace-SR008.nfs2/users/zhemchuzhnikov/vsevolod/datasets/deepcad_test_mesh")
 
 PROCESSOR_ID = "Qwen/Qwen2-VL-2B-Instruct"
 BATCH_SIZE = 128
@@ -39,16 +42,28 @@ SEED = 16
 torch.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
 
+
 def collate_fn(batch, processor):
     mesh_paths = [str(b["mesh_path"]) for b in batch]
-    messages = [[{"role": "user", "content": [{"type": "image", "image": b["image"]}]}] for b in batch]
-    texts = [processor.apply_chat_template(m, tokenize=False, add_generation_prompt=True) for m in messages]
+    messages = [
+        [{"role": "user", "content": [{"type": "image", "image": b["image"]}]}]
+        for b in batch
+    ]
+    texts = [
+        processor.apply_chat_template(m, tokenize=False, add_generation_prompt=True)
+        for m in messages
+    ]
     vis_imgs, vis_vids = process_vision_info(messages)
-    inputs = processor(text=texts, images=vis_imgs, videos=vis_vids, padding=True, return_tensors="pt")
+    inputs = processor(
+        text=texts, images=vis_imgs, videos=vis_vids, padding=True, return_tensors="pt"
+    )
     inputs["mesh_path"] = mesh_paths
     return inputs
 
-def evaluate(model, processor, ds, normalize="fixed", var_name='result', nc_params=None):
+
+def evaluate(
+    model, processor, ds, normalize="fixed", var_name="result", nc_params=None
+):
     model.eval()
     device = next(model.parameters()).device
 
@@ -73,8 +88,11 @@ def evaluate(model, processor, ds, normalize="fixed", var_name='result', nc_para
     with torch.inference_mode():
         for batch in tqdm(dl):
             # to device
-            inputs = {k: (v.to(device) if isinstance(v, torch.Tensor) else v)
-                    for k, v in batch.items() if k != "mesh_path"}
+            inputs = {
+                k: (v.to(device) if isinstance(v, torch.Tensor) else v)
+                for k, v in batch.items()
+                if k != "mesh_path"
+            }
 
             gen_kwargs = dict(
                 max_new_tokens=MAX_NEW_TOKENS,
@@ -90,21 +108,22 @@ def evaluate(model, processor, ds, normalize="fixed", var_name='result', nc_para
             # trim prompts
             in_lens = batch["attention_mask"].sum(dim=1).tolist()
             gen_list = gen_ids.tolist()
-            trimmed = [gen_list[i][in_lens[i]:] for i in range(len(in_lens))]
+            trimmed = [gen_list[i][in_lens[i] :] for i in range(len(in_lens))]
 
             # decode
-            texts = processor.tokenizer.batch_decode(
-                trimmed, 
-                skip_special_tokens=True 
-            )
-            #print(texts)
+            texts = processor.tokenizer.batch_decode(trimmed, skip_special_tokens=True)
+            # print(texts)
 
-            #texts = extract_assistant_text(decoded)
+            # texts = extract_assistant_text(decoded)
             t0 = time.perf_counter()
-            #metrics_batch = run_texts(texts, batch["mesh_path"], var_name="result", normalize=normalize)
-            metrics_batch = get_metrics_from_texts(texts, batch["mesh_path"], nc_params=nc_params, var_name=var_name)
-            print(f"metrics time: {time.perf_counter() - t0:.3f}s for {len(texts)} samples")
-            #print(metrics_batch)
+            # metrics_batch = run_texts(texts, batch["mesh_path"], var_name="result", normalize=normalize)
+            metrics_batch = get_metrics_from_texts(
+                texts, batch["mesh_path"], nc_params=nc_params, var_name=var_name
+            )
+            print(
+                f"metrics time: {time.perf_counter() - t0:.3f}s for {len(texts)} samples"
+            )
+            # print(metrics_batch)
 
             for m in metrics_batch:
                 if m is None or m.get("iou") is None or m.get("cd") is None:
@@ -115,11 +134,15 @@ def evaluate(model, processor, ds, normalize="fixed", var_name='result', nc_para
                     continue
                 ious.append(m["iou"])
                 cds.append(m["cd"])
-                if nc_params and nc_params.get("get_mae_render") and m.get("mae_similarity") is not None:
+                if (
+                    nc_params
+                    and nc_params.get("get_mae_render")
+                    and m.get("mae_similarity") is not None
+                ):
                     mae_sims.append(m["mae_similarity"])
 
-    mn = (lambda x: float(np.mean(x)) if len(x) else float("nan"))
-    md = (lambda x: float(np.median(x)) if len(x) else float("nan"))
+    mn = lambda x: float(np.mean(x)) if len(x) else float("nan")
+    md = lambda x: float(np.median(x)) if len(x) else float("nan")
 
     print(f"IoU mean {mn(ious)}, median {md(ious)}")
     print(f"CD mean {mn(cds)}, median {md(cds)}")
@@ -142,18 +165,29 @@ def evaluate(model, processor, ds, normalize="fixed", var_name='result', nc_para
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_path", required=True, help="Path or hub id for Qwen2-VL model")
-    parser.add_argument("--normalize", type=str, default="fixed", choices=["fixed", "mesh_extents"])
-    parser.add_argument("--var_name", type=str, default=None,
-                    help="Variable name holding final CAD object.")
-    parser.add_argument("--get_mae_render", action="store_true",
-                    help="Compute MAE render similarity metric (slower).")
+    parser.add_argument(
+        "--model_path", required=True, help="Path or hub id for Qwen2-VL model"
+    )
+    parser.add_argument(
+        "--normalize", type=str, default="fixed", choices=["fixed", "mesh_extents"]
+    )
+    parser.add_argument(
+        "--var_name",
+        type=str,
+        default=None,
+        help="Variable name holding final CAD object.",
+    )
+    parser.add_argument(
+        "--get_mae_render",
+        action="store_true",
+        help="Compute MAE render similarity metric (slower).",
+    )
     args = parser.parse_args()
 
     var_name = args.var_name or os.getenv("METRICS_VAR_NAME", "result")
 
-    os.environ['FONTCONFIG_PATH'] = '/etc/fonts'
-    os.environ['FONTCONFIG_FILE'] = '/etc/fonts/fonts.conf'
+    os.environ["FONTCONFIG_PATH"] = "/etc/fonts"
+    os.environ["FONTCONFIG_FILE"] = "/etc/fonts/fonts.conf"
 
     # -----------------------------------------------------------------------------
     # Environment tweaks – important for head-less servers and reproducibility
@@ -182,16 +216,27 @@ def main():
     ).to("cuda" if torch.cuda.is_available() else "cpu")
 
     init_pool(POOL_SIZE)
-    eval_ds = STLImageToCode(DATAROOT, split = "val", size=256,
-        #pickle_file = "/workspace-SR008.nfs2/users/barannikov/cad_refine_rl/datasets/MCB_A_batch_groundtruth.pkl",
-        shuffle=False) 
+    eval_ds = STLImageToCode(
+        DATAROOT,
+        split="val",
+        size=256,
+        # pickle_file = "/workspace-SR008.nfs2/users/barannikov/cad_refine_rl/datasets/MCB_A_batch_groundtruth.pkl",
+        shuffle=False,
+    )
 
     nc_params = {"get_mae_render": args.get_mae_render} if args.get_mae_render else None
-    res = evaluate(model, processor, eval_ds, normalize=args.normalize, var_name=var_name, nc_params=nc_params)
+    res = evaluate(
+        model,
+        processor,
+        eval_ds,
+        normalize=args.normalize,
+        var_name=var_name,
+        nc_params=nc_params,
+    )
     close_pool()
 
-    mn = (lambda x: float(np.mean(x)) if len(x) else float("nan"))
-    md = (lambda x: float(np.median(x)) if len(x) else float("nan"))
+    mn = lambda x: float(np.mean(x)) if len(x) else float("nan")
+    md = lambda x: float(np.median(x)) if len(x) else float("nan")
 
     metrics = {
         "eval/img/IoU mean": mn(res["ious"]),

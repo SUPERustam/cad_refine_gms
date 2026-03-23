@@ -16,12 +16,12 @@ class Plotter:
         self.mesh_render_img_size = self.view_img_size * 2
 
         self.views = {
-            '-Z': self.minus_z_view,
-            '+Z': self.plus_z_view,
-            '+Y': self.plus_y_view,
-            '-Y': self.minus_y_view,
-            '+X': self.plus_x_view,
-            '-X': self.minus_x_view,
+            "-Z": self.minus_z_view,
+            "+Z": self.plus_z_view,
+            "+Y": self.plus_y_view,
+            "-Y": self.minus_y_view,
+            "+X": self.plus_x_view,
+            "-X": self.minus_x_view,
             # 'Iso': lambda: self.plotter.view_isometric(),
             # "-Iso": lambda: self.plotter.view_isometric(negative=True),
         }
@@ -32,12 +32,14 @@ class Plotter:
 
         self.cmap_gt = pv.LookupTable(
             values=np.array([[0, c, 0, 255] for c in range(0, 256)]),
-            scalar_range=(0, 255), ramp="linear",
+            scalar_range=(0, 255),
+            ramp="linear",
         )
 
         self.cmap_pred = pv.LookupTable(
             values=np.array([[c, 0, 0, 255] for c in range(0, 256)]),
-            scalar_range=(0, 255), ramp="linear",
+            scalar_range=(0, 255),
+            ramp="linear",
         )
 
         self.reload()
@@ -48,9 +50,21 @@ class Plotter:
         pred_mesh_path,
         apply_augs=False,
     ):
-        image = self._get_img(gt_mesh_path, self.cmap_gt, apply_augs, color=(0, 255, 0),  scale=self.scale_gt)
+        image = self._get_img(
+            gt_mesh_path,
+            self.cmap_gt,
+            apply_augs,
+            color=(0, 255, 0),
+            scale=self.scale_gt,
+        )
         if pred_mesh_path:
-            pred_img = self._get_img(pred_mesh_path, self.cmap_pred, apply_augs=False, color=(255, 0, 0), scale=self.scale_pred)
+            pred_img = self._get_img(
+                pred_mesh_path,
+                self.cmap_pred,
+                apply_augs=False,
+                color=(255, 0, 0),
+                scale=self.scale_pred,
+            )
             gt_r, gt_g, gt_b = image.split()
             pred_r, pred_g, pred_b = pred_img.split()
             image = Image.merge("RGB", (pred_r, gt_g, gt_b))
@@ -62,21 +76,34 @@ class Plotter:
         cmap,
         apply_augs=False,
         color=None,
-        
         scale=True,
     ):
         mesh = pv.read(mesh_path)
 
         if scale:
-            mesh.translate([-0.5 * (mesh.bounds.x_min + mesh.bounds.x_max),
-                            -0.5 * (mesh.bounds.y_min + mesh.bounds.y_max),
-                            -0.5 * (mesh.bounds.z_min + mesh.bounds.z_max)], inplace=True)
-            max_span = max(mesh.bounds.x_max - mesh.bounds.x_min, mesh.bounds.y_max - mesh.bounds.y_min, mesh.bounds.z_max - mesh.bounds.z_min)
-            mesh.scale(200. / max_span, inplace=True)
+            mesh.translate(
+                [
+                    -0.5 * (mesh.bounds.x_min + mesh.bounds.x_max),
+                    -0.5 * (mesh.bounds.y_min + mesh.bounds.y_max),
+                    -0.5 * (mesh.bounds.z_min + mesh.bounds.z_max),
+                ],
+                inplace=True,
+            )
+            max_span = max(
+                mesh.bounds.x_max - mesh.bounds.x_min,
+                mesh.bounds.y_max - mesh.bounds.y_min,
+                mesh.bounds.z_max - mesh.bounds.z_min,
+            )
+            mesh.scale(200.0 / max_span, inplace=True)
 
         mesh.point_data.update(self.get_scalars(mesh))
         mesh_actor = self.plotter.add_mesh(
-            mesh, reset_camera=False, color=None, scalars=None, cmap=cmap, show_scalar_bar=False
+            mesh,
+            reset_camera=False,
+            color=None,
+            scalars=None,
+            cmap=cmap,
+            show_scalar_bar=False,
         )
         mesh_actor.use_bounds = False
 
@@ -91,7 +118,10 @@ class Plotter:
 
             img_array = self.plotter.screenshot(return_img=True)
             pil_img = Image.fromarray(img_array)
-            pil_img.thumbnail((self.view_img_size, self.view_img_size), resample=Image.Resampling.BILINEAR)
+            pil_img.thumbnail(
+                (self.view_img_size, self.view_img_size),
+                resample=Image.Resampling.BILINEAR,
+            )
             if self.align_coordinates and view_name in ("-Z", "+Y", "+X", "Iso"):
                 pil_img = pil_img.transpose(Image.FLIP_LEFT_RIGHT)
             # draw = ImageDraw.Draw(pil_img)
@@ -121,21 +151,26 @@ class Plotter:
 
             img_array = self.iso_plotter.screenshot(return_img=True)
             pil_img = Image.fromarray(img_array)
-            pil_img.thumbnail((self.view_img_size, self.view_img_size), resample=Image.Resampling.BILINEAR)
+            pil_img.thumbnail(
+                (self.view_img_size, self.view_img_size),
+                resample=Image.Resampling.BILINEAR,
+            )
             if self.align_coordinates and view_name in ("-Z", "+Y", "+X", "Iso"):
                 pil_img = pil_img.transpose(Image.FLIP_LEFT_RIGHT)
             # draw = ImageDraw.Draw(pil_img)
             # draw.text((1, 1), view_name, fill='black', font=ImageFont.load_default())
             view_images.append(pil_img)
 
-        _success = self.iso_plotter.remove_actor(mesh_actor, reset_camera=False, render=False)
+        _success = self.iso_plotter.remove_actor(
+            mesh_actor, reset_camera=False, render=False
+        )
         if not _success:
             self.reload()
 
         padding = 0
         total_width = round(self.cols * self.view_img_size + (self.cols - 1) * padding)
         total_height = round(self.rows * self.view_img_size + (self.rows - 1) * padding)
-        collage = Image.new('RGB', (total_width, total_height), color="white")
+        collage = Image.new("RGB", (total_width, total_height), color="white")
         for i, img in enumerate(view_images):
             row = i // self.cols
             col = i % self.cols
@@ -147,22 +182,36 @@ class Plotter:
 
     def reload(self):
         plotter = pv.Plotter(
-            off_screen=True, window_size=(self.mesh_render_img_size, self.mesh_render_img_size), lighting='none')
-        plotter.set_background('black')
+            off_screen=True,
+            window_size=(self.mesh_render_img_size, self.mesh_render_img_size),
+            lighting="none",
+        )
+        plotter.set_background("black")
         self.plotter = plotter
 
         plotter = pv.Plotter(
-            off_screen=True, window_size=(self.mesh_render_img_size, self.mesh_render_img_size))
-        plotter.set_background('black')
+            off_screen=True,
+            window_size=(self.mesh_render_img_size, self.mesh_render_img_size),
+        )
+        plotter.set_background("black")
         self.iso_plotter = plotter
 
         x_min, x_max = -100, 100
         y_min, y_max = -100, 100
         z_min, z_max = -100, 100
-        lim_points = [(x, y, z) for x in (x_min, x_max) for y in (y_min, y_max) for z in (z_min, z_max)]
-        self.plotter.add_points(np.array(lim_points, dtype=float), color=(1, 1, 1), opacity=0, point_size=1)
+        lim_points = [
+            (x, y, z)
+            for x in (x_min, x_max)
+            for y in (y_min, y_max)
+            for z in (z_min, z_max)
+        ]
+        self.plotter.add_points(
+            np.array(lim_points, dtype=float), color=(1, 1, 1), opacity=0, point_size=1
+        )
 
-        self.iso_plotter.add_points(np.array(lim_points, dtype=float), color=(1, 1, 1), opacity=0, point_size=1)
+        self.iso_plotter.add_points(
+            np.array(lim_points, dtype=float), color=(1, 1, 1), opacity=0, point_size=1
+        )
 
         # if self.show_axes:
         #     self.plotter.add_axes()
@@ -171,6 +220,16 @@ class Plotter:
         #     values=np.array([[0, c, 0, o] for c, o in zip(self.color_values, self.opacity_values)]),
         #     scalar_range=(-100, 100), ramp="linear",
         # )
+
+    def close(self):
+        for name in ("plotter", "iso_plotter"):
+            p = getattr(self, name, None)
+            if p is not None:
+                try:
+                    p.close()
+                except Exception:
+                    pass
+                setattr(self, name, None)
 
     def get_scalars(self, mesh):
         result = {}

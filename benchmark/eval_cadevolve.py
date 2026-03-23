@@ -14,10 +14,9 @@ import sys
 # sys.path.append('/workspace-SR008.fs2/users/zhemchuzhnikov/api_generator/')
 
 
-
 # font
-os.environ['FONTCONFIG_PATH'] = '/etc/fonts'
-os.environ['FONTCONFIG_FILE'] = '/etc/fonts/fonts.conf'
+os.environ["FONTCONFIG_PATH"] = "/etc/fonts"
+os.environ["FONTCONFIG_FILE"] = "/etc/fonts/fonts.conf"
 
 # -----------------------------------------------------------------------------
 # Environment tweaks – important for head-less servers and reproducibility
@@ -28,6 +27,7 @@ os.environ["PYGLET_HEADLESS"] = "True"  # Avoid opening windows when trimesh ren
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
+
 
 # -----------------------------------------------------------------------------
 # Helper classes – allow         Pool inside Pool (CadQuery leaks memory, so we
@@ -58,9 +58,11 @@ class _NonDaemonPool(Pool):
         proc.__class__ = _NonDaemonProcess  # type: ignore[attr-defined]
         return proc
 
+
 # -----------------------------------------------------------------------------
 # Heavy imports – performed *inside* each worker so the main process stays light
 # -----------------------------------------------------------------------------
+
 
 def _worker_init():
     """Executed once in every worker process (fork-server context)."""
@@ -70,9 +72,11 @@ def _worker_init():
 
     globals().update(cq=_cq, trimesh=_trimesh, cKDTree=_cKDTree)
 
+
 # -----------------------------------------------------------------------------
 # Geometry & metric helpers
 # -----------------------------------------------------------------------------
+
 
 def _compound_to_mesh(compound: "cq.Workplane") -> "trimesh.Trimesh":  # type: ignore[name-defined]
     vertices, faces = compound.tessellate(0.001, 0.1)
@@ -91,9 +95,9 @@ def _cad_code_to_mesh(code: str):
 
         return _compound_to_mesh(result.val())  # type: ignore[index]
     except Exception as exc:  # noqa: BLE001
-        #print(f"[CadQuery ERROR] {exc}")
-        raise(exc)
-        #return None
+        # print(f"[CadQuery ERROR] {exc}")
+        raise (exc)
+        # return None
 
 
 def _chamfer_distance(pred_mesh, gt_mesh, n_points: int = 8192):
@@ -102,7 +106,7 @@ def _chamfer_distance(pred_mesh, gt_mesh, n_points: int = 8192):
 
     gt_d, _ = cKDTree(gt_pts).query(pred_pts, k=1)
     pred_d, _ = cKDTree(pred_pts).query(gt_pts, k=1)
-    return np.mean(gt_d ** 2) + np.mean(pred_d ** 2)
+    return np.mean(gt_d**2) + np.mean(pred_d**2)
 
 
 def _iou(gt_mesh, pred_mesh):
@@ -115,8 +119,8 @@ def _iou(gt_mesh, pred_mesh):
                 intersection_volume += volume
 
         # if intersection_volume == 0:
-            # return compute_mc_iou(gt_mesh, pred_mesh)
-            # return compute_voxel_iou(gt_mesh, pred_mesh)
+        # return compute_mc_iou(gt_mesh, pred_mesh)
+        # return compute_voxel_iou(gt_mesh, pred_mesh)
 
         gt_volume = sum(m.volume for m in gt_mesh.split())
         pred_volume = sum(m.volume for m in pred_mesh.split())
@@ -127,6 +131,7 @@ def _iou(gt_mesh, pred_mesh):
     except:
         # return compute_voxel_iou(gt_mesh, pred_mesh)
         pass
+
 
 def _normalize_trimesh_to_unit(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
     m = mesh.copy()
@@ -139,17 +144,19 @@ def _normalize_trimesh_to_unit(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
     m.apply_transform(trimesh.transformations.translation_matrix([0.5, 0.5, 0.5]))
     return m
 
+
 # -----------------------------------------------------------------------------
 # Metrics for a single sample – executed in a *grand-child* process, so crashes
 # or CadQuery leaks cannot hurt the pool worker.
 # -----------------------------------------------------------------------------
+
 
 def _metrics_for_snippet(code: str, gt_path: str, n_points: int):
     base_name = os.path.basename(gt_path)
     try:
         pred_mesh = _cad_code_to_mesh(code)
     except Exception as exc:  # noqa: BLE001
-        #print(f"[{base_name}] CadQuery exec failed: {exc}")
+        # print(f"[{base_name}] CadQuery exec failed: {exc}")
         return dict(file_name=base_name, cd=None, iou=None)
 
     if pred_mesh is None:
@@ -163,15 +170,17 @@ def _metrics_for_snippet(code: str, gt_path: str, n_points: int):
         cd_val = _chamfer_distance(pred_mesh, gt_mesh, n_points)
         iou_val = _iou(gt_mesh, pred_mesh)
         out_dict = dict(file_name=base_name, cd=cd_val, iou=iou_val)
-        #print(out_dict)
+        # print(out_dict)
         return out_dict
     except Exception as exc:  # noqa: BLE001
         print(f"[{base_name}] Metric computation failed: {exc}")
         return dict(file_name=base_name, cd=None, iou=None)
 
+
 # -----------------------------------------------------------------------------
 # Timeout-guard – isolates heavy CadQuery execution from workers.
 # -----------------------------------------------------------------------------
+
 
 def _run_with_timeout(args: Tuple[str, str, int], timeout: int = 60):
     ctx = get_context("fork")  # fast and safe (no CUDA here)
@@ -198,9 +207,11 @@ def _child_entry(conn, args):
     finally:
         conn.close()
 
+
 # -----------------------------------------------------------------------------
 # Public API – high-level helper around the pool
 # -----------------------------------------------------------------------------
+
 
 def compute_metrics_for_files(
     cad_files: List[str],
@@ -219,6 +230,7 @@ def compute_metrics_for_files(
         _POOL = _NonDaemonPool(processes=workers, context=ctx, initializer=_worker_init)
 
         import atexit  # heavy work gets killed on CTRL-C
+
         atexit.register(lambda: (_POOL.close(), _POOL.join()))
 
     # Prepare args (CadQuery code string + ground-truth mesh path)
@@ -229,16 +241,18 @@ def compute_metrics_for_files(
 
         gt_name = os.path.basename(cad_path).split("+")[0] + ".stl"
         ###
-        gt_name = gt_name.replace('.txt', '')
+        gt_name = gt_name.replace(".txt", "")
         ###
         gt_path = os.path.join(gt_mesh_dir, gt_name)
         job_args.append((code_str, gt_path, n_points))
 
     # Run async – one apply_async per sample so workers stay busy
-    async_res = [_POOL.apply_async(_run_with_timeout, args=(arg, timeout)) for arg in job_args]
+    async_res = [
+        _POOL.apply_async(_run_with_timeout, args=(arg, timeout)) for arg in job_args
+    ]
 
     results = []
-    for res in tqdm(async_res, total = len(cad_files), leave=False):
+    for res in tqdm(async_res, total=len(cad_files), leave=False):
         out = res.get()
         if out in ("__TIMEOUT__", "__CRASH__"):
             print(f"[Worker] {out} while processing a sample – skipping.")
@@ -247,9 +261,11 @@ def compute_metrics_for_files(
             results.append(out)
     return results
 
+
 # -----------------------------------------------------------------------------
 # Top-level evaluation routine – matches the behaviour of the original script
 # -----------------------------------------------------------------------------
+
 
 def evaluate(
     gt_mesh_path: str,
@@ -264,9 +280,15 @@ def evaluate(
 
     if os.path.exists(best_names_path):
         os.remove(best_names_path)
-    
-    cad_files = [os.path.join(pred_py_path, f) for f in os.listdir(pred_py_path) if f.endswith(".txt")]
-    metrics = compute_metrics_for_files(cad_files, gt_mesh_path, n_points=n_points, workers=workers, timeout=timeout)
+
+    cad_files = [
+        os.path.join(pred_py_path, f)
+        for f in os.listdir(pred_py_path)
+        if f.endswith(".txt")
+    ]
+    metrics = compute_metrics_for_files(
+        cad_files, gt_mesh_path, n_points=n_points, workers=workers, timeout=timeout
+    )
 
     # Aggregate per base file (i.e. without +index)
     grouped = defaultdict(lambda: defaultdict(list))
@@ -297,16 +319,17 @@ def evaluate(
             ir_iou += 1
 
     # with open(best_names_path, "w", encoding="utf-8") as file:
-        # file.writelines(line + "\n" for line in best_names)
+    # file.writelines(line + "\n" for line in best_names)
 
     elapsed = time.time() - start
     print(
         f"CD missing for {ir_cd / len(metrics):.4%}\n"
         f"IoU missing for {ir_iou / len(metrics):.4%}\n"
-        f"Mean CD   : {1000*np.mean(cd_values):.6f}\n"
-        f"Median CD : {1000*np.median(cd_values):.6f}\n"
+        f"Mean CD   : {1000 * np.mean(cd_values):.6f}\n"
+        f"Median CD : {1000 * np.median(cd_values):.6f}\n"
         f"Mean IoU  : {np.mean(iou_values):.6f}\n"
-        f"Completed in {elapsed / 60:.1f} min.")
+        f"Completed in {elapsed / 60:.1f} min."
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -315,7 +338,6 @@ def evaluate(
 import argparse
 
 if __name__ == "__main__":
-
     os.environ.setdefault("OMP_NUM_THREADS", "1")
     os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
     os.environ.setdefault("MKL_NUM_THREADS", "1")
@@ -323,17 +345,21 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Evaluate 3D mesh predictions")
     parser.add_argument(
-        "--dataset", 
-        type=str, 
-        choices=["mcb", "fusion360", "deepcad", "mcb_1000", "fusion360_1000", "deepcad_1000"],
+        "--dataset",
+        type=str,
+        choices=[
+            "mcb",
+            "fusion360",
+            "deepcad",
+            "mcb_1000",
+            "fusion360_1000",
+            "deepcad_1000",
+        ],
         default="deepcad_1000",
-        help="Dataset to evaluate on (mcb, fusion360, or deepcad)"
+        help="Dataset to evaluate on (mcb, fusion360, or deepcad)",
     )
     parser.add_argument(
-        "--pred_py_path", 
-        type=str, 
-        required=True,
-        help="Path to prediction files"
+        "--pred_py_path", type=str, required=True, help="Path to prediction files"
     )
     args = parser.parse_args()
     dataset_paths = {
@@ -342,18 +368,17 @@ if __name__ == "__main__":
         "deepcad": "/scratch/498rustam/datasets/deepcad_test_mesh",
         "mcb_1000": "/scratch/498rustam/datasets/mcb_a_batch_groudtruth_1000/",
         "fusion360_1000": "/scratch/498rustam/datasets/fusion360_test_mesh_1000/",
-        "deepcad_1000": "/scratch/498rustam/datasets/deepcad_test_mesh_1000" 
+        "deepcad_1000": "/scratch/498rustam/datasets/deepcad_test_mesh_1000",
     }
-    
+
     if args.dataset not in dataset_paths:
         raise ValueError(f"Dataset must be one of: {', '.join(dataset_paths.keys())}")
-    
+
     gt_mesh_path = dataset_paths[args.dataset]
     evaluate(
         gt_mesh_path=gt_mesh_path,
         pred_py_path=args.pred_py_path,
         best_names_path=f"/scratch/498rustam/cad_refine_m/reports/{args.dataset}.txt",
-
         n_points=8192,
         workers=4,
         timeout=60,

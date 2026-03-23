@@ -16,15 +16,18 @@ LAUNCH_SCRIPT="${SCRIPT_DIR}/rl_train_cos_sched.py"
 LOG_DIR="${SCRIPT_DIR}/logs_rl"
 VLLM_LOG="${LOG_DIR}/vllm_server.log"
 
-OUTPUT_DIR="${OUTPUT_DIR:-${SCRIPT_DIR}/rl_checkpoints/rl_mae_train}"
-RUN_NAME="${RUN_NAME:-grpo_mae_render_0}"
-SFT_PATH="${SFT_PATH:-}"
-RESUME="${RESUME:-False}"
+OUTPUT_DIR="${SCRIPT_DIR}/rl_checkpoints/rl_mae_train"
+RUN_NAME="grpo_mae_render_1"
+SFT_PATH="/scratch/498rustam/cad_refine_m/checkpoints/sft-30682/"
+RESUME="False"
 
 LOG_FILE="${LOG_DIR}/${RUN_NAME}.log"
-VLLM_WAIT="${VLLM_WAIT:-80}"
+VLLM_WAIT="80"
 
-export METRICS_VAR_NAME="${METRICS_VAR_NAME:-r}"
+export METRICS_VAR_NAME="r"
+
+CUDA_VLLM="0"
+CUDA_TRAIN="1,2,3"
 
 mkdir -p "${LOG_DIR}"
 
@@ -33,8 +36,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-CUDA_VLLM="${CUDA_VLLM:-0}"
-CUDA_TRAIN="${CUDA_TRAIN:-1,2,3}"
+
 
 echo "[$(date)] Starting vLLM server on GPU ${CUDA_VLLM}..."
 CUDA_VISIBLE_DEVICES="${CUDA_VLLM}" trl vllm-serve --model Qwen/Qwen2-VL-2B-Instruct --max_model_len 3600 >"${VLLM_LOG}" 2>&1 &

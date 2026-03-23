@@ -5,6 +5,8 @@ import sys
 # sys.path.append('/workspace-SR008.nfs2/users/zhemchuzhnikov/api_generator/toy_inference/') # ME: comment this
 
 from vis_for_norm_parts import Plotter
+
+
 class Plotter1_1(Plotter):
     def _get_img(
         self,
@@ -15,7 +17,7 @@ class Plotter1_1(Plotter):
     ):
         mesh = pv.read(mesh_path)
         # translate points to [0-1]
-        #mesh.points = (mesh.points + 1.0) / 2.0
+        # mesh.points = (mesh.points + 1.0) / 2.0
         b = np.array(mesh.bounds)
         mins = b[::2]
         maxs = b[1::2]
@@ -26,7 +28,12 @@ class Plotter1_1(Plotter):
 
         mesh.point_data.update(self.get_scalars(mesh))
         mesh_actor = self.plotter.add_mesh(
-            mesh, reset_camera=False, color=None, scalars=None, cmap=cmap, show_scalar_bar=False
+            mesh,
+            reset_camera=False,
+            color=None,
+            scalars=None,
+            cmap=cmap,
+            show_scalar_bar=False,
         )
         mesh_actor.use_bounds = False
 
@@ -41,7 +48,10 @@ class Plotter1_1(Plotter):
 
             img_array = self.plotter.screenshot(return_img=True)
             pil_img = Image.fromarray(img_array)
-            pil_img.thumbnail((self.view_img_size, self.view_img_size), resample=Image.Resampling.BILINEAR)
+            pil_img.thumbnail(
+                (self.view_img_size, self.view_img_size),
+                resample=Image.Resampling.BILINEAR,
+            )
             if self.align_coordinates and view_name in ("-Z", "+Y", "+X", "Iso"):
                 pil_img = pil_img.transpose(Image.FLIP_LEFT_RIGHT)
             # draw = ImageDraw.Draw(pil_img)
@@ -53,7 +63,10 @@ class Plotter1_1(Plotter):
         if apply_augs:
             try:
                 view_images = self.apply_augs(
-                    {view_name: view_image for view_name, view_image in zip(self.views, view_images)}
+                    {
+                        view_name: view_image
+                        for view_name, view_image in zip(self.views, view_images)
+                    }
                 )
             except Exception as ex:
                 print("Exception in augs:", ex)
@@ -71,21 +84,26 @@ class Plotter1_1(Plotter):
 
             img_array = self.iso_plotter.screenshot(return_img=True)
             pil_img = Image.fromarray(img_array)
-            pil_img.thumbnail((self.view_img_size, self.view_img_size), resample=Image.Resampling.BILINEAR)
+            pil_img.thumbnail(
+                (self.view_img_size, self.view_img_size),
+                resample=Image.Resampling.BILINEAR,
+            )
             if self.align_coordinates and view_name in ("-Z", "+Y", "+X", "Iso"):
                 pil_img = pil_img.transpose(Image.FLIP_LEFT_RIGHT)
             # draw = ImageDraw.Draw(pil_img)
             # draw.text((1, 1), view_name, fill='black', font=ImageFont.load_default())
             view_images.append(pil_img)
 
-        _success = self.iso_plotter.remove_actor(mesh_actor, reset_camera=False, render=False)
+        _success = self.iso_plotter.remove_actor(
+            mesh_actor, reset_camera=False, render=False
+        )
         if not _success:
             self.reload()
 
         padding = 0
         total_width = round(self.cols * self.view_img_size + (self.cols - 1) * padding)
         total_height = round(self.rows * self.view_img_size + (self.rows - 1) * padding)
-        collage = Image.new('RGB', (total_width, total_height), color="white")
+        collage = Image.new("RGB", (total_width, total_height), color="white")
         for i, img in enumerate(view_images):
             row = i // self.cols
             col = i % self.cols

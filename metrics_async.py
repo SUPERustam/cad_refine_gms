@@ -13,36 +13,7 @@ import numpy as np
 
 import os
 
-# Process-local singleton for MAE render Plotter (each forked worker / child has its own copy).
-# Do not share across processes; safe with forkserver pool + per-task fork children.
-_MAE_PLOTTER = None
-
-
-def _get_mae_plotter():
-    """Lazily create and reuse one Plotter per process to avoid repeated init cost."""
-    global _MAE_PLOTTER
-    if _MAE_PLOTTER is None:
-        from benchmark.visualization_iso import Plotter
-
-        _MAE_PLOTTER = Plotter()
-    return _MAE_PLOTTER
-
-
-def _reload_mae_plotter():
-    """Reset PyVista plotter state after a failed render (same pattern as benchmark/inference_vllm.py)."""
-    global _MAE_PLOTTER
-    if _MAE_PLOTTER is None:
-        return
-    try:
-        _MAE_PLOTTER.reload()
-    except Exception:
-        pass
-
-
-def _drop_mae_plotter():
-    """Force a fresh Plotter on next _get_mae_plotter() if reload is not enough."""
-    global _MAE_PLOTTER
-    _MAE_PLOTTER = None
+from benchmark.visualization_iso import Plotter
 
 
 _REMAP_RULES = [
@@ -50,7 +21,6 @@ _REMAP_RULES = [
         "/home/jovyan/shares/SR008.nfs2/users/CAD/cadexp/datasets/",
         "/home/jovyan/shares/SR008.fs2/CAD/cadexp/datasets/",
     ),
-
     (
         "/workspace-SR008.nfs2/users/zhemchuzhnikov/datasets/MCB_A/",
         "/workspace-SR008.fs2/CAD/cadexp/datasets/MCB_A/",
@@ -65,13 +35,14 @@ _REMAP_RULES = [
     ),
 ]
 
+
 def remap_path(p: str) -> str:
     if not isinstance(p, str) or not p:
         return p
 
     for old, new in _REMAP_RULES:
         if p.startswith(old):
-            cand = new + p[len(old):]
+            cand = new + p[len(old) :]
             if os.path.exists(cand):
                 return cand
 
@@ -80,15 +51,18 @@ def remap_path(p: str) -> str:
 
     for old, new in _REMAP_RULES:
         if p.startswith(old):
-            return new + p[len(old):]
+            return new + p[len(old) :]
 
     return p
+
 
 class NonDaemonProcess(Process):
     def _get_daemon(self):
         return False
+
     def _set_daemon(self, value):
         pass
+
     daemon = property(_get_daemon, _set_daemon)
 
 
@@ -98,25 +72,30 @@ class NonDaemonPool(Pool):
         proc.__class__ = NonDaemonProcess
         return proc
 
-# process initializer used in case of forkserver
+
+# Pool initializer for spawn workers (CPU metrics only; CUDA hidden in worker).
 def init_worker():
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
     os.environ["PYTORCH_NO_CUDA_MEMORY_CACHING"] = "1"
-    os.environ["OMP_NUM_THREADS"]       = "1"
-    os.environ["OPENBLAS_NUM_THREADS"]  = "1"
-    os.environ["MKL_NUM_THREADS"]       = "1"
-    
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+
     import trimesh
     from scipy.spatial import cKDTree
     import cadquery as cq
 
     # make them available to your metric code
-    globals()['trimesh'] = trimesh
-    globals()['cKDTree'] = cKDTree
-    globals()['cq'] = cq
+    globals()["trimesh"] = trimesh
+    globals()["cKDTree"] = cKDTree
+    globals()["cq"] = cq
     # Optional: create Plotter once per pool worker when MAE is always used (reduces per-fork init).
     # Off by default — PyVista state after fork can be finicky; enable via env if needed.
-    if os.environ.get("METRICS_PREINIT_MAE_PLOTTER", "").lower() in ("1", "true", "yes"):
+    if os.environ.get("METRICS_PREINIT_MAE_PLOTTER", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
         _get_mae_plotter()
 
 
@@ -128,8 +107,8 @@ def compute_normals_metrics(gt_mesh, pred_mesh, tol=1, n_points=8192, visualize=
     Computes the area over the curve (AOC) of the angle distribution between the normals.
     Returns the aoc and mean_cos_sim
     """
-    #tol = 0.01 * max(gt_mesh.extents.max(), pred_mesh.extents.max())  # 1% of the mesh extent
-    tol = pred_mesh.extents.max() * tol  / 100
+    # tol = 0.01 * max(gt_mesh.extents.max(), pred_mesh.extents.max())  # 1% of the mesh extent
+    tol = pred_mesh.extents.max() * tol / 100
 
     gt_points, gt_face_indexes = trimesh.sample.sample_surface(gt_mesh, n_points)
     pred_points, pred_face_indexes = trimesh.sample.sample_surface(pred_mesh, n_points)
@@ -151,7 +130,7 @@ def compute_normals_metrics(gt_mesh, pred_mesh, tol=1, n_points=8192, visualize=
         if len(idxs) == 0:
             continue
         gn = gt_normals[i]
-        pn_neighbors = pred_normals[idxs] # candidates
+        pn_neighbors = pred_normals[idxs]  # candidates
 
         valid_gt_normals.append(gn)
         dots = (pn_neighbors * gn).sum(axis=1)  # (k,)
@@ -172,15 +151,13 @@ def compute_normals_metrics(gt_mesh, pred_mesh, tol=1, n_points=8192, visualize=
 
     nb_invalid = n_points - len(valid_pred_normals)
     per_invalid = nb_invalid / n_points * 100
-    #print(f"Number of points with no neighbors within tol: {nb_invalid} out of {n_points} ({per_invalid:.2f}%)")
+    # print(f"Number of points with no neighbors within tol: {nb_invalid} out of {n_points} ({per_invalid:.2f}%)")
 
-    
-    
     # compute cosine similarity
     cos_sim = (valid_pred_normals * valid_gt_normals).sum(axis=1)
     cos_sim = np.clip(cos_sim, -1.0, 1.0)
     mean_cos_sim = np.mean(cos_sim)
-    
+
     # distribution of angles between normals
     angles = np.arccos(cos_sim)
     angles = np.sort(angles)
@@ -189,20 +166,22 @@ def compute_normals_metrics(gt_mesh, pred_mesh, tol=1, n_points=8192, visualize=
     angles = np.concatenate((angles, np.full(nb_invalid, np.pi)))
 
     N = len(angles)
-    cdf = np.arange(1, N+1) / N
+    cdf = np.arange(1, N + 1) / N
 
     from numpy import trapz
+
     x = np.concatenate(([0.0], angles, [np.pi]))
-    y = np.concatenate(([0.0],   cdf,   [1.0]))
-    auc_normalized = trapz(y, x) / np.pi  # Normalize by the maximum possible aoc (which is pi)
+    y = np.concatenate(([0.0], cdf, [1.0]))
+    auc_normalized = (
+        trapz(y, x) / np.pi
+    )  # Normalize by the maximum possible aoc (which is pi)
 
-    #we want to maximize the AUC
-    #aoc_normalized = 1 - auc_normalized
+    # we want to maximize the AUC
+    # aoc_normalized = 1 - auc_normalized
     # plot the aoc
-    #if aoc_normalized > 0.3:
-        #print(f"HIGH aoc: {aoc_normalized:.2f}")
-        #plot_aoc(angles, cdf, title='aoc of Normal Angles', aoc_value=aoc_normalized)
-
+    # if aoc_normalized > 0.3:
+    # print(f"HIGH aoc: {aoc_normalized:.2f}")
+    # plot_aoc(angles, cdf, title='aoc of Normal Angles', aoc_value=aoc_normalized)
 
     return auc_normalized, mean_cos_sim, per_invalid
 
@@ -215,7 +194,7 @@ def compute_iou(gt_mesh, pred_mesh):
                 intersection = gt_mesh_i.intersection(pred_mesh_i)
                 volume = intersection.volume if intersection is not None else 0
                 intersection_volume += volume
-        
+
         gt_volume = sum(m.volume for m in gt_mesh.split())
         pred_volume = sum(m.volume for m in pred_mesh.split())
         union_volume = gt_volume + pred_volume - intersection_volume
@@ -232,7 +211,6 @@ def compute_cd(pred_mesh, gt_mesh, n_points=8192):
     pred_distance, _ = cKDTree(pred_points).query(gt_points, k=1)
     cd = np.mean(np.square(gt_distance)) + np.mean(np.square(pred_distance))
     return cd
-
 
 
 def transform_real_mesh(mesh):
@@ -266,9 +244,10 @@ def transform_gt_mesh_cad_recodev2(mesh):
     mesh.apply_translation(-(mesh.bounds[0] + mesh.bounds[1]) / 2.0)  # shift to center
     extent = np.max(mesh.extents)
     if extent > 1e-7:
-            mesh.apply_scale(0.875 / extent)
+        mesh.apply_scale(0.875 / extent)
     mesh.apply_transform(trimesh.transformations.translation_matrix([0.5, 0.5, 0.5]))
     return mesh
+
 
 def transform_pred_mesh(mesh):
     if mesh is None:
@@ -279,66 +258,45 @@ def transform_pred_mesh(mesh):
     mesh.apply_transform(trimesh.transformations.translation_matrix([0.5, 0.5, 0.5]))
     return mesh
 
-def mae_similarity(A, B):
-    """Compute 1 - MAE/255 for two same-shape arrays (e.g. RGB images). Higher = more similar."""
-    if A.shape != B.shape:
-        raise ValueError("Matrices must have the same shape")
-    mae = np.mean(np.abs(A - B))
-    return float(1.0 - mae / 255.0)
 
-
-def _render_mesh_to_array(mesh_path, plotter=None):
-    """Render a mesh from file path to RGB numpy array. Returns (H, W, 3) uint8."""
-    p = plotter if plotter is not None else _get_mae_plotter()
-
-    def _do_render(pl):
-        img = np.array(pl._get_img(mesh_path, pl.cmap_gt, apply_augs=False, color=(0, 255, 0), scale=True))[:714, :, 1] # it's important to remove isometric view
-        return img
-
+def render_based_mae_similarity(gt_file, pred_mesh):
+    plotter = Plotter()
+    gt_img = pred_img = None
     try:
-        return _do_render(p)
-    except Exception:
-        # Same recovery as benchmark/inference_vllm.py: reload plotter, then retry once.
+        gt_img = plotter._get_img(
+            gt_file, plotter.cmap_gt, apply_augs=False, color=(0, 255, 0), scale=True
+        )
+        pred_img = plotter._get_img(
+            pred_mesh, plotter.cmap_pred, apply_augs=False, color=(0, 255, 0), scale=True
+        )
+        if gt_img is None or pred_img is None:
+            raise ValueError("GT or pred image is None")
+        gt_arr = np.array(gt_img)
+        pred_arr = np.array(pred_img)
+        if gt_arr.shape != pred_arr.shape:
+            raise ValueError("Matrices must have the same shape")
         try:
-            p.reload()
+            gt_arr = gt_arr[
+                :714, :, 1
+            ]  # remove isometric views and leave only green channel
+            pred_arr = pred_arr[:714, :, 1]
+        except Exception:
+            raise ValueError("GT or pred array is not valid for removing isometric views/green channel")
+        if gt_arr.shape != pred_arr.shape:
+            raise ValueError("GT or pred array is not valid for removing isometric views/green channel")
+        return float(1.0 - np.mean(np.abs(gt_arr - pred_arr)) / 255.0)
+    finally:
+        for im in (gt_img, pred_img):
+            if im is not None:
+                try:
+                    im.close()
+                except Exception:
+                    pass
+        try:
+            plotter.close()
         except Exception:
             pass
-        try:
-            return _do_render(p)
-        except Exception:
-            if plotter is None:
-                _drop_mae_plotter()
-            raise
-
-
-def _compute_mae_render_similarity(gt_file, pred_mesh):
-    """
-    Render GT (from path) and pred (trimesh) to same-size images and compute mae_similarity.
-    pred_mesh is assumed to be normalized (e.g. transform_mesh_0_1).
-    Uses process-global Plotter via _get_mae_plotter().
-    """
-    import tempfile
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".stl", delete=False) as f:
-            pred_path = f.name
-        pred_mesh.export(pred_path)
-        try:
-            gt_arr = _render_mesh_to_array(gt_file)
-            pred_arr = _render_mesh_to_array(pred_path)
-            if gt_arr.shape != pred_arr.shape:
-                return None
-            return mae_similarity(gt_arr, pred_arr)
-        finally:
-            try:
-                os.unlink(pred_path)
-            except OSError:
-                pass
-    except Exception:
-        try:
-            _reload_mae_plotter()
-        except Exception:
-            pass
-        return None
+    return None
 
 
 def compound_to_mesh(compound):
@@ -348,7 +306,7 @@ def compound_to_mesh(compound):
 
 def code_to_mesh_and_brep_less_safe(code_str, var_name="result"):
     safe_ns = {"cq": cq}
-    ns=safe_ns.copy()
+    ns = safe_ns.copy()
     try:
         exec(code_str, ns)
         mesh = compound_to_mesh(ns[var_name].val())
@@ -360,66 +318,103 @@ def code_to_mesh_and_brep_less_safe(code_str, var_name="result"):
         return None
 
 
-def get_metrics_from_single_text(text, gt_file, n_points, nc_params=None, var_name="result"):
+def get_metrics_from_single_text(
+    text, gt_file, n_points, nc_params=None, var_name="result"
+):
     # ME: comment this
     # gt_file = os.path.abspath(gt_file)
     # gt_file = remap_path(gt_file)
-    base_file = os.path.basename(gt_file).rsplit('.stl', 1)[0]
+    base_file = os.path.basename(gt_file).rsplit(".stl", 1)[0]
     try:
         pred_mesh = code_to_mesh_and_brep_less_safe(text, var_name)
     except Exception as e:
-        return dict(file_name=base_file, cd=None, iou=None, auc=None, auc_gms=None, mae_similarity=None)
+        return dict(
+            file_name=base_file,
+            cd=None,
+            iou=None,
+            auc=None,
+            auc_gms=None,
+            mae_similarity=None,
+        )
 
     if pred_mesh is None:
-        return dict(file_name=base_file, cd=None, iou=None, auc=None, auc_gms=None, mae_similarity=None)
+        return dict(
+            file_name=base_file,
+            cd=None,
+            iou=None,
+            auc=None,
+            auc_gms=None,
+            mae_similarity=None,
+        )
     cd, iou, auc, auc_gms, mae_similarity_val = None, None, None, None, None
+    metric_cfg = nc_params or {}
+    need_cd = bool(metric_cfg.get("get_cd", True))
+    need_iou = bool(metric_cfg.get("get_iou", True))
+    need_nc = bool(metric_cfg.get("get_nc", False))
+    need_aoc_gms = bool(metric_cfg.get("get_aoc_gms", False))
+    need_mae_render = bool(metric_cfg.get("get_mae_render", False))
+    need_gt_mesh = need_cd or need_iou or need_nc or need_aoc_gms
     gt_mesh = None
-    try: 
-        gt_mesh = trimesh.load_mesh(gt_file)
-        gt_mesh = transform_mesh_0_1(gt_mesh)
+    try:
         pred_mesh = transform_mesh_0_1(pred_mesh)
+        if need_gt_mesh:
+            gt_mesh = trimesh.load_mesh(gt_file)
+            gt_mesh = transform_mesh_0_1(gt_mesh)
 
-        cd = compute_cd(gt_mesh, pred_mesh, n_points)
-        try:
-            iou = compute_iou(gt_mesh, pred_mesh)
-        except Exception as e:
-            print(f"IoU error for {base_file}: {e}", flush=True)
-            iou = None
-            if nc_params and nc_params.get("get_nc") == True:
+        if need_cd:
+            try:
+                cd = compute_cd(gt_mesh, pred_mesh, n_points)
+            except Exception as e:
+                print(f"CD error for {base_file}: {e}", flush=True)
+                cd = None
+
+        if need_iou:
+            try:
+                iou = compute_iou(gt_mesh, pred_mesh)
+            except Exception as e:
+                print(f"IoU error for {base_file}: {e}", flush=True)
+                iou = None
+
+        if need_nc:
+            try:
                 auc, _, _ = compute_normals_metrics(
                     gt_mesh,
                     pred_mesh,
-                    n_points=nc_params.get("n_points", n_points),
-                    tol=nc_params.get("tol", 5),
+                    n_points=metric_cfg.get("n_points", n_points),
+                    tol=metric_cfg.get("tol", 5),
                 )
-            if nc_params and nc_params.get("get_aoc_gms", False):
-                try:
-                    from aoc_gms_metric import aoc_gms_from_meshes
+            except Exception as e:
+                print(f"Normals error for {base_file}: {e}", flush=True)
+                auc = None
 
-                    aoc_kwargs = {
-                        "n_points": nc_params.get("aoc_gms_n_points", n_points),
-                        "n_angles": nc_params.get("aoc_gms_n_angles", 125),
-                        "rel_dist_tol": nc_params.get("aoc_gms_rel_tol", 0.05),
-                        "cube_trick": nc_params.get("aoc_gms_cube_trick", True),
-                        "pc_cache_enable": nc_params.get("aoc_gms_pc_cache_enable", False),
-                        "upper_bound_tol_rt": nc_params.get("aoc_gms_upper_bound_tol_rt", 25),
-                        "autofix_sampling": nc_params.get("aoc_gms_autofix_sampling", False),
-                        "add_auc": True,
-                    }
+        if need_aoc_gms:
+            try:
+                from aoc_gms_metric import aoc_gms_from_meshes
 
-                    _, _, _, auc_gms = aoc_gms_from_meshes(
-                        gt_mesh,
-                        pred_mesh,
-                        **aoc_kwargs,
-                    )
-                except Exception as e:
-                    print(f"AOC-GMS error for {base_file}: {e}", flush=True)
+                aoc_kwargs = {
+                    "n_points": metric_cfg.get("aoc_gms_n_points", n_points),
+                    "n_angles": metric_cfg.get("aoc_gms_n_angles", 125),
+                    "rel_dist_tol": metric_cfg.get("aoc_gms_rel_tol", 0.05),
+                    "cube_trick": metric_cfg.get("aoc_gms_cube_trick", True),
+                    "pc_cache_enable": metric_cfg.get("aoc_gms_pc_cache_enable", False),
+                    "upper_bound_tol_rt": metric_cfg.get("aoc_gms_upper_bound_tol_rt", 25),
+                    "autofix_sampling": metric_cfg.get("aoc_gms_autofix_sampling", False),
+                    "add_auc": True,
+                }
 
-            if nc_params and nc_params.get("get_mae_render", False):
-                try:
-                    mae_similarity_val = _compute_mae_render_similarity(gt_file, pred_mesh)
-                except Exception as e:
-                    print(f"MAE render error for {base_file}: {e}", flush=True)
+                _, _, _, auc_gms = aoc_gms_from_meshes(
+                    gt_mesh,
+                    pred_mesh,
+                    **aoc_kwargs,
+                )
+            except Exception as e:
+                print(f"AOC-GMS error for {base_file}: {e}", flush=True)
+
+        if need_mae_render:
+            try:
+                mae_similarity_val = render_based_mae_similarity(gt_file, pred_mesh)
+            except Exception as e:
+                print(f"MAE render error for {base_file}: {e}", flush=True)
 
     except Exception as e:
         print(f"error for {base_file}: {e}", flush=True)
@@ -432,24 +427,32 @@ def get_metrics_from_single_text(text, gt_file, n_points, nc_params=None, var_na
                 del pred_mesh
         except:
             pass
-    return dict(file_name=base_file, cd=cd, iou=iou, auc=auc, auc_gms=auc_gms, mae_similarity=mae_similarity_val)
-
-
+    return dict(
+        file_name=base_file,
+        cd=cd,
+        iou=iou,
+        auc=auc,
+        auc_gms=auc_gms,
+        mae_similarity=mae_similarity_val,
+    )
 
 
 POOL = None
+
 
 def init_pool(max_workers):
     ctx = get_context("forkserver")
     global POOL
     if POOL is None:
-        #ctx = get_context("spawn")
+        # ctx = get_context("spawn")
+        # ctx = get_context("spawn")
         POOL = NonDaemonPool(
             processes=max_workers,
             initializer=init_worker,
             context=ctx,
         )
     return POOL
+
 
 def close_pool():
     global POOL
@@ -475,7 +478,7 @@ def timed_process_text(arg, timeout=100):
 
     result = parent.recv() if parent.poll() else "__CRASH__"
     parent.close()
-    return result  
+    return result
 
 
 def _run_child(conn, arg):
@@ -486,11 +489,93 @@ def _run_child(conn, arg):
         conn.close()
 
 
-def get_metrics_from_texts(texts, meshes, nc_params=None, max_workers=None, var_name="result"):
+def timed_process_text(arg, timeout=100):
+    ctx = get_context("fork")
+    parent, child = ctx.Pipe(duplex=False)
+
+    p = ctx.Process(target=_run_child, args=(child, arg))
+    p.start()
+    p.join(timeout)
+
+    if p.is_alive():
+        p.terminate()
+        p.join()
+        parent.close()
+        return "__TIMEOUT__"
+
+    result = parent.recv() if parent.poll() else "__CRASH__"
+    parent.close()
+    return result
+
+
+def _run_child(conn, arg):
+    try:
+        res = get_metrics_from_single_text(*arg)
+        conn.send(res)
+    finally:
+        conn.close()
+
+
+def timed_process_text(arg, timeout=100):
+    ctx = get_context("fork")
+    parent, child = ctx.Pipe(duplex=False)
+
+    p = ctx.Process(target=_run_child, args=(child, arg))
+    p.start()
+    p.join(timeout)
+
+    if p.is_alive():
+        p.terminate()
+        p.join()
+        parent.close()
+        return "__TIMEOUT__"
+
+    result = parent.recv() if parent.poll() else "__CRASH__"
+    parent.close()
+    return result
+
+
+def _run_child(conn, arg):
+    try:
+        res = get_metrics_from_single_text(*arg)
+        conn.send(res)
+    finally:
+        conn.close()
+
+
+def timed_process_text(arg, timeout=100):
+    ctx = get_context("fork")
+    parent, child = ctx.Pipe(duplex=False)
+
+    p = ctx.Process(target=_run_child, args=(child, arg))
+    p.start()
+    p.join(timeout)
+
+    if p.is_alive():
+        p.terminate()
+        p.join()
+        parent.close()
+        return "__TIMEOUT__"
+
+    result = parent.recv() if parent.poll() else "__CRASH__"
+    parent.close()
+    return result
+
+
+def _run_child(conn, arg):
+    try:
+        res = get_metrics_from_single_text(*arg)
+        conn.send(res)
+    finally:
+        conn.close()
+
+
+def get_metrics_from_texts(
+    texts, meshes, nc_params=None, max_workers=None, var_name="result"
+):
     n_points = 8192
     args = [
-        (text, gt, n_points, nc_params, var_name)
-        for text, gt in zip(texts, meshes)
+        (text, gt, n_points, nc_params, var_name) for text, gt in zip(texts, meshes)
     ]
     async_results = [POOL.apply_async(timed_process_text, args=(arg,)) for arg in args]
     results = []
@@ -499,7 +584,16 @@ def get_metrics_from_texts(texts, meshes, nc_params=None, max_workers=None, var_
         output = res.get()
         if output == "__TIMEOUT__" or output == "__CRASH__":
             print(f"[{output}] metrics task computation ERROR, skipping", flush=True)
-            results.append(dict(file_name=None, cd=None, iou=None, auc=None, auc_gms=None, mae_similarity=None))
+            results.append(
+                dict(
+                    file_name=None,
+                    cd=None,
+                    iou=None,
+                    auc=None,
+                    auc_gms=None,
+                    mae_similarity=None,
+                )
+            )
         else:
             results.append(output)
 

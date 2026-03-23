@@ -7,8 +7,17 @@ import os
 _DEFAULT_VAR_NAME = os.getenv("METRICS_VAR_NAME", "result")
 _FALLBACK_VAR_NAME = os.getenv("METRICS_VAR_FALLBACK", "")
 
-def reward_from_metrics(cd: float, iou: float, auc: float = 0, auc_gms: float = None, mae_similarity: float = None, mode: str = "default") -> float:
-    if cd is None or math.isnan(cd) or cd <= 0: cd = 1.0
+
+def reward_from_metrics(
+    cd: float,
+    iou: float,
+    auc: float = 0,
+    auc_gms: float = None,
+    mae_similarity: float = None,
+    mode: str = "default",
+) -> float:
+    if cd is None or math.isnan(cd) or cd <= 0:
+        cd = 1.0
     if iou is None or (isinstance(iou, float) and math.isnan(iou)):
         iou = 0.0
     if auc is None or (isinstance(auc, float) and math.isnan(auc)):
@@ -17,8 +26,9 @@ def reward_from_metrics(cd: float, iou: float, auc: float = 0, auc_gms: float = 
         r = 10.0 * float(iou)
     elif mode == "cd_to_reward":
         ln = math.log(max(cd, 1e-8))
-        denom = (ln - 1.0)
-        if abs(denom) < 1e-4: denom = 1e-4 if denom >= 0 else -1e-4
+        denom = ln - 1.0
+        if abs(denom) < 1e-4:
+            denom = 1e-4 if denom >= 0 else -1e-4
         r = 10.0 * (1.0 + 1.0 / denom)
     elif mode == "iou":
         r = float(iou)
@@ -35,35 +45,48 @@ def reward_from_metrics(cd: float, iou: float, auc: float = 0, auc_gms: float = 
     return float(np.clip(r, -10.0, 10.0))
 
 
-def get_reward_function(failure_reward, iou_coef=10, cd_coef=0, auc_coef=0, aoc_gms_coef=0, mae_coef=0, nc_params=None, mode="10_iou", print_every=50, var_name=None):
+def get_reward_function(
+    failure_reward,
+    iou_coef=10,
+    cd_coef=0,
+    auc_coef=0,
+    aoc_gms_coef=0,
+    mae_coef=0,
+    nc_params=None,
+    mode="10_iou",
+    print_every=50,
+    var_name=None,
+):
     def combined_reward(completions, mesh_path, trainer_state=None, **kwargs):
         vn = var_name or _DEFAULT_VAR_NAME
         rewards = []
         pred_metrics = get_metrics_from_texts(
-            completions, mesh_path, nc_params, var_name=vn)
+            completions, mesh_path, nc_params, var_name=vn
+        )
         for m in pred_metrics:
             reward = 0
             iou = m["iou"] if m is not None else None
             cd = m["cd"] if m is not None else None
             auc = m["auc"] if m is not None else None
             use_mae_render = (
-                nc_params
-                and nc_params.get("get_mae_render")
-                and mae_coef > 0
+                nc_params and nc_params.get("get_mae_render") and mae_coef > 0
             )
             use_aoc_gms = (
-                nc_params
-                and nc_params.get("get_aoc_gms")
-                and aoc_gms_coef > 0
+                nc_params and nc_params.get("get_aoc_gms") and aoc_gms_coef > 0
             )
             if use_mae_render:
                 mae_val = m.get("mae_similarity") if m is not None else None
-                if mae_val is None or (isinstance(mae_val, float) and math.isnan(mae_val)):
+                if mae_val is None or (
+                    isinstance(mae_val, float) and math.isnan(mae_val)
+                ):
                     reward = failure_reward
                 else:
                     raw = reward_from_metrics(
-                        cd=cd or 1.0, iou=iou or 0.0, auc=auc or 0.0,
-                        mae_similarity=mae_val, mode="10_mae_render",
+                        cd=cd or 1.0,
+                        iou=iou or 0.0,
+                        auc=auc or 0.0,
+                        mae_similarity=mae_val,
+                        mode="10_mae_render",
                     )
                     reward = float(np.clip((mae_coef / 10.0) * raw, -10.0, 10.0))
             elif use_aoc_gms:
@@ -72,14 +95,23 @@ def get_reward_function(failure_reward, iou_coef=10, cd_coef=0, auc_coef=0, aoc_
                     reward = failure_reward
                 else:
                     gms_reward = reward_from_metrics(
-                        cd=cd or 1.0, iou=iou or 0.0, auc=auc or 0.0,
-                        auc_gms=auc_gms_value, mode="10_auc_gms",
+                        cd=cd or 1.0,
+                        iou=iou or 0.0,
+                        auc=auc or 0.0,
+                        auc_gms=auc_gms_value,
+                        mode="10_auc_gms",
                     )
-                    reward = float(np.clip((aoc_gms_coef / 10.0) * gms_reward, -10.0, 10.0))
+                    reward = float(
+                        np.clip((aoc_gms_coef / 10.0) * gms_reward, -10.0, 10.0)
+                    )
             elif iou is None:
                 reward = failure_reward
             else:
-                effective_mode = mode if mode and mode not in ("10_mae_render", "10_auc_gms") else "10_iou"
+                effective_mode = (
+                    mode
+                    if mode and mode not in ("10_mae_render", "10_auc_gms")
+                    else "10_iou"
+                )
                 reward = reward_from_metrics(cd, iou, auc=auc, mode=effective_mode)
             if not math.isfinite(reward):
                 reward = failure_reward
@@ -89,9 +121,16 @@ def get_reward_function(failure_reward, iou_coef=10, cd_coef=0, auc_coef=0, aoc_
         top_idx = rewards.index(max(rewards))
         top_generation = completions[top_idx]
         top_mesh_path = mesh_path[top_idx]
-        _maybe_print_sample(top_generation, top_mesh_path, step=trainer_state.global_step, every=print_every)
+        _maybe_print_sample(
+            top_generation,
+            top_mesh_path,
+            step=trainer_state.global_step,
+            every=print_every,
+        )
         return rewards
+
     return combined_reward
+
 
 def reward_from_auc_blend(auc, pivot=0.98, L=0.60, beta=3.0, q=3.0, lam=0.5):
     """
@@ -101,8 +140,8 @@ def reward_from_auc_blend(auc, pivot=0.98, L=0.60, beta=3.0, q=3.0, lam=0.5):
     alpha = L / pivot
     left = alpha * a
     t = np.clip((a - pivot) / (1.0 - pivot), 0.0, 1.0)
-    S_power = t ** beta
-    S_soft  = 1.0 - (1.0 - t) ** q
-    S_mix   = (1 - lam) * S_power + lam * S_soft
+    S_power = t**beta
+    S_soft = 1.0 - (1.0 - t) ** q
+    S_mix = (1 - lam) * S_power + lam * S_soft
     right = L + (1.0 - L) * S_mix
     return np.where(a < pivot, left, right)

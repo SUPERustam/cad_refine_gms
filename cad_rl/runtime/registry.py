@@ -137,9 +137,7 @@ class RunRegistry:
         checkpoints = self.list_checkpoints(run_id)
         if not checkpoints:
             return None
-        return max(
-            checkpoints, key=lambda item: (-1 if item.step is None else item.step)
-        )
+        return max(checkpoints, key=lambda item: -1 if item.step is None else item.step)
 
     def read_best_checkpoint(self, run_id: str) -> CheckpointRef | None:
         checkpoints = self.list_checkpoints(run_id)
@@ -154,7 +152,7 @@ class RunRegistry:
             )
         if checkpoints:
             return max(
-                checkpoints, key=lambda item: (-1 if item.step is None else item.step)
+                checkpoints, key=lambda item: -1 if item.step is None else item.step
             )
         return None
 

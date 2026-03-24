@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 try:  # pragma: no cover - optional dataset-prep dependency
-    from vis_for_norm_parts import Plotter as _BasePlotter
+    from visualization_iso import Plotter as _BasePlotter
 
     _VIS_FOR_NORM_PARTS_IMPORT_ERROR: Exception | None = None
 except Exception as exc:  # pragma: no cover - exercised via explicit failure test
@@ -136,3 +136,5 @@ else:
     class Plotter1_1:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             _raise_missing_vis_dependency()
+
+

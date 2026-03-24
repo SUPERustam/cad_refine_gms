@@ -4,6 +4,7 @@ from .hf_dataset import (
     fingerprint_prepared_dataset,
     load_prepared_hf_dataset,
 )
+from .inference_dataset import RawSTLInferenceDataset, load_inference_dataset
 
 
 def prepare_dataset_main() -> None:
@@ -17,5 +18,7 @@ __all__ = [
     "PreparedDatasetManifest",
     "fingerprint_prepared_dataset",
     "load_prepared_hf_dataset",
+    "RawSTLInferenceDataset",
+    "load_inference_dataset",
     "prepare_dataset_main",
 ]

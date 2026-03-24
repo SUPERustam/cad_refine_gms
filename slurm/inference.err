@@ -1,0 +1,24 @@
+The image processor of type `Qwen2VLImageProcessor` is now loaded as a fast processor by default, even if the model checkpoint was saved with a slow processor. This is a breaking change and may produce slightly different outputs. To continue using the slow processor, instantiate this class with `use_fast=False`. Note that this behavior will be extended to all models in a future release.
+You have video processor config saved in `preprocessor.json` file which is deprecated. Video processor configs should be saved in their own `video_preprocessor.json` file. You can rename the file or load and save the processor back which renames it automatically. Loading from `preprocessor.json` will be removed in v5.0.
+Traceback (most recent call last):
+  File "/scratch/498rustam/cad_refine_m/cad_rl/data/helper_visu.py", line 6, in <module>
+    from vis_for_norm_parts import Plotter as _BasePlotter
+ModuleNotFoundError: No module named 'vis_for_norm_parts'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/scratch/498rustam/cad_refine_m/infer.py", line 77, in <module>
+    main()
+  File "/scratch/498rustam/cad_refine_m/infer.py", line 53, in main
+    dataset = load_inference_dataset(
+  File "/scratch/498rustam/cad_refine_m/cad_rl/data/inference_dataset.py", line 64, in load_inference_dataset
+    return RawSTLInferenceDataset(path, recursive=raw_recursive, size=max_samples)
+  File "/scratch/498rustam/cad_refine_m/cad_rl/data/inference_dataset.py", line 39, in __init__
+    self.plotter = Plotter1_1()
+  File "/scratch/498rustam/cad_refine_m/cad_rl/data/helper_visu.py", line 138, in __init__
+    _raise_missing_vis_dependency()
+  File "/scratch/498rustam/cad_refine_m/cad_rl/data/helper_visu.py", line 20, in _raise_missing_vis_dependency
+    raise RuntimeError(message) from _VIS_FOR_NORM_PARTS_IMPORT_ERROR
+RuntimeError: Dataset preparation visualization requires the optional 'vis_for_norm_parts' dependency. Install it or run the dataset-prep pipeline in an environment that provides it.
+srun: error: cn27: task 0: Exited with exit code 1

@@ -26,6 +26,20 @@ VLLM_WAIT="80"
 
 export METRICS_VAR_NAME="r"
 
+# PyVista/VTK: off-screen renders (bitmaps for metrics). Inherited by training + metric workers.
+export PYVISTA_OFF_SCREEN=true
+export VTK_DEFAULT_RENDER_WINDOW_OFFSCREEN=1
+
+# VTK 9.x: metric workers clear CUDA, so EGL often has no device → VTK falls back to X11
+# and logs "vtkXOpenGLRenderWindow ... bad X server connection" unless DISPLAY exists.
+# Wrapping training in xvfb-run provides a virtual X server (no window on your desktop).
+XVFB_PREFIX=()
+if [[ "${PYVISTA_USE_XVFB:-1}" != "0" ]] && command -v xvfb-run >/dev/null 2>&1; then
+  XVFB_PREFIX=(xvfb-run -a -s "-screen 0 4096x4096x24")
+elif [[ "${PYVISTA_USE_XVFB:-1}" != "0" ]]; then
+  echo "[train_loop_dp_mae] Note: xvfb-run not in PATH; install the xvfb package on the cluster to silence VTK X11 warnings on CPU metric workers." >&2
+fi
+
 CUDA_VLLM="0"
 CUDA_TRAIN="1,2,3"
 
@@ -49,7 +63,7 @@ if [[ -z "${SFT_PATH}" ]]; then
 fi
 
 echo "[$(date)] Launching training with config ${CONFIG_FILE}..."
-script --flush "${LOG_FILE}" --command \
+"${XVFB_PREFIX[@]}" script --flush "${LOG_FILE}" --command \
   "COMET_API_KEY=${COMET_API_KEY:-} COMET_PROJECT_NAME=${COMET_PROJECT_NAME:-} COMET_WORKSPACE=${COMET_WORKSPACE:-} \
    CUDA_VISIBLE_DEVICES=${CUDA_TRAIN} PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
    accelerate launch ${LAUNCH_SCRIPT} --config ${CONFIG_FILE} \

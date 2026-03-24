@@ -1,9 +1,17 @@
 # Fast vLLM inference 
 flashinfer-python 
 flashinfer-cubin 
-
 --extra-index-url https://flashinfer.ai/whl/cu128
 flashinfer-jit-cache 
 torch-c-dlpack-ext
 
+# proper visualization for pyvista
 pyvista
+--extra-index-url https://wheels.vtk.org
+trame>=3.9
+trame-vtk
+trame-vuetify
+# Use only one VTK wheel: do not add vtk-osmesa alongside vtk — both ship vtkmodules and
+# can trigger "vtkRenderingMatplotlib not compatible with vtkRenderingFreeType".
+# VTK 9.4+ wheels from wheels.vtk.org support OSMesa/EGL at runtime without a separate vtk-osmesa package.
+vtk>=9.4.2

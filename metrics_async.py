@@ -267,7 +267,11 @@ def render_based_mae_similarity(gt_file, pred_mesh):
             gt_file, plotter.cmap_gt, apply_augs=False, color=(0, 255, 0), scale=True
         )
         pred_img = plotter._get_img(
-            pred_mesh, plotter.cmap_pred, apply_augs=False, color=(0, 255, 0), scale=True
+            pred_mesh,
+            plotter.cmap_pred,
+            apply_augs=False,
+            color=(0, 255, 0),
+            scale=True,
         )
         if gt_img is None or pred_img is None:
             raise ValueError("GT or pred image is None")
@@ -281,9 +285,13 @@ def render_based_mae_similarity(gt_file, pred_mesh):
             ]  # remove isometric views and leave only green channel
             pred_arr = pred_arr[:714, :, 1]
         except Exception:
-            raise ValueError("GT or pred array is not valid for removing isometric views/green channel")
+            raise ValueError(
+                "GT or pred array is not valid for removing isometric views/green channel"
+            )
         if gt_arr.shape != pred_arr.shape:
-            raise ValueError("GT or pred array is not valid for removing isometric views/green channel")
+            raise ValueError(
+                "GT or pred array is not valid for removing isometric views/green channel"
+            )
         return float(1.0 - np.mean(np.abs(gt_arr - pred_arr)) / 255.0)
     finally:
         for im in (gt_img, pred_img):
@@ -397,8 +405,12 @@ def get_metrics_from_single_text(
                     "rel_dist_tol": metric_cfg.get("aoc_gms_rel_tol", 0.05),
                     "cube_trick": metric_cfg.get("aoc_gms_cube_trick", True),
                     "pc_cache_enable": metric_cfg.get("aoc_gms_pc_cache_enable", False),
-                    "upper_bound_tol_rt": metric_cfg.get("aoc_gms_upper_bound_tol_rt", 25),
-                    "autofix_sampling": metric_cfg.get("aoc_gms_autofix_sampling", False),
+                    "upper_bound_tol_rt": metric_cfg.get(
+                        "aoc_gms_upper_bound_tol_rt", 25
+                    ),
+                    "autofix_sampling": metric_cfg.get(
+                        "aoc_gms_autofix_sampling", False
+                    ),
                     "add_auc": True,
                 }
 

@@ -19,7 +19,7 @@ logging_steps: 30
 num_generations: 16
 generation_batch_size: 384
 report_to: ["comet_ml"]
-run_name: grpo_mae_render_2
+run_name: grpo_mae_render_0
 num_train_epochs: 20
 save_strategy: steps
 save_steps: 400

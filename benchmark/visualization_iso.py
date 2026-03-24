@@ -1,6 +1,22 @@
+import os
+
+# Headless: must run before `import pyvista`.
+# Note: CPU metric workers often hide CUDA (no EGL device); VTK then falls back to
+# vtkXOpenGLRenderWindow, which warns if DISPLAY is unset. Fix at job level: run under
+# `xvfb-run -a` (see train_loop_dp_mae.sh) or install OSMesa. Optional GPU-only EGL:
+#   export VTK_DEFAULT_OPENGL_WINDOW=vtkEGLRenderWindow
+# https://docs.vtk.org/en/latest/advanced/runtime_settings.html
+os.environ.setdefault("PYVISTA_OFF_SCREEN", "true")
+os.environ.setdefault("VTK_DEFAULT_RENDER_WINDOW_OFFSCREEN", "1")
+
 import pyvista as pv
+
+# Off-screen only: framebuffer → numpy/screenshots; no X11 window (correct for headless + MAE metrics).
+pv.OFF_SCREEN = True
+
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
+from trimesh import Trimesh
 
 
 class Plotter:
@@ -72,13 +88,16 @@ class Plotter:
 
     def _get_img(
         self,
-        mesh_path,
+        mesh_path: Trimesh | str,
         cmap,
         apply_augs=False,
         color=None,
         scale=True,
-    ):
-        mesh = pv.read(mesh_path)
+    ):  
+        if isinstance(mesh_path, Trimesh):
+            mesh = pv.from_trimesh(mesh_path)
+        else:
+            mesh = pv.read(mesh_path)
 
         if scale:
             mesh.translate(

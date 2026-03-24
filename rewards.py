@@ -1,11 +1,20 @@
 import math
 from metrics_async import get_metrics_from_texts
-from utils import _maybe_print_sample
 import numpy as np
 import os
 
 _DEFAULT_VAR_NAME = os.getenv("METRICS_VAR_NAME", "result")
 _FALLBACK_VAR_NAME = os.getenv("METRICS_VAR_FALLBACK", "")
+
+
+# ----------- callback for printing samples
+def _maybe_print_sample(completion, mesh_path, step, every=50):
+    if every < 0 or step == 0 or step % every != 0:
+        return
+    print(
+        f"\n[SAMPLE @ step {step}]\n Mesh path : {mesh_path} \n {completion}\n",
+        flush=True,
+    )
 
 
 def reward_from_metrics(

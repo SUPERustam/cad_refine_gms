@@ -51,21 +51,16 @@ def build_qwen_generation_kwargs(
 ) -> dict[str, Any]:
     defaults = defaults or GenerationDefaults()
     bad_words = list(defaults.bad_words)
-    stop_token_ids = []
+    bad_words_ids: list[list[int]] = []
     tokenizer = getattr(processor, "tokenizer", None)
     if tokenizer is not None:
         unk = getattr(tokenizer, "unk_token_id", None)
         for token in bad_words:
             token_id = tokenizer.convert_tokens_to_ids(token)
             if token_id is not None and token_id != unk:
-                stop_token_ids.append(token_id)
-        im_end_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
-        if im_end_id is not None and im_end_id != unk:
-            stop_token_ids.append(im_end_id)
+                bad_words_ids.append([token_id])
 
     payload: dict[str, Any] = {
-        "bad_words": bad_words,
-        "stop_token_ids": sorted(set(stop_token_ids)),
         "max_new_tokens": defaults.max_new_tokens,
         "do_sample": defaults.do_sample,
         "temperature": defaults.temperature,
@@ -73,6 +68,8 @@ def build_qwen_generation_kwargs(
         "top_k": defaults.top_k,
         "repetition_penalty": defaults.repetition_penalty,
     }
+    if bad_words_ids:
+        payload["bad_words_ids"] = bad_words_ids
     if overrides:
         payload.update(dict(overrides))
     return payload

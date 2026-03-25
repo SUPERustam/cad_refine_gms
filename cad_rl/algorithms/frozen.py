@@ -133,6 +133,7 @@ def build_reward_function(config: FrozenRewardConfig):
 
 
 def build_generation_kwargs(processor) -> dict[str, Any]:
+    """Return kwargs compatible with ``transformers.GenerationConfig`` / ``generate()``."""
     bad_words = [
         "<|image_pad|>",
         "<|vision_pad|>",
@@ -140,13 +141,16 @@ def build_generation_kwargs(processor) -> dict[str, Any]:
         "<|vision_end|>",
         "<|video_pad|>",
     ]
-    ids = [
-        processor.tokenizer.convert_tokens_to_ids(token)
-        for token in bad_words
-        if processor.tokenizer.convert_tokens_to_ids(token)
-        != processor.tokenizer.unk_token_id
-    ]
-    return {"bad_words": bad_words, "stop_token_ids": ids}
+    tokenizer = processor.tokenizer
+    unk = getattr(tokenizer, "unk_token_id", None)
+    bad_words_ids: list[list[int]] = []
+    for token in bad_words:
+        tid = tokenizer.convert_tokens_to_ids(token)
+        if tid is not None and tid != unk:
+            bad_words_ids.append([tid])
+    if not bad_words_ids:
+        return {}
+    return {"bad_words_ids": bad_words_ids}
 
 
 def compute_training_steps(grpo_args, dataset_length: int) -> int:

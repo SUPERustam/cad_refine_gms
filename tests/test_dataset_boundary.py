@@ -32,21 +32,21 @@ def test_dataset_package_import_smoke() -> None:
     import prepare_dataset  # noqa: F401
 
 
-def test_missing_vis_for_norm_parts_raises_clear_error(
+def test_missing_visualization_iso_raises_clear_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     real_import = builtins.__import__
 
     def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "vis_for_norm_parts":
-            raise ImportError("simulated missing vis_for_norm_parts")
+        if name == "cad_rl.data.visualization_iso":
+            raise ImportError("simulated missing visualization_iso")
         return real_import(name, globals, locals, fromlist, level)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
     sys.modules.pop("cad_rl.data.helper_visu", None)
     mod = importlib.import_module("cad_rl.data.helper_visu")
 
-    with pytest.raises(RuntimeError, match="vis_for_norm_parts"):
+    with pytest.raises(RuntimeError, match="visualization_iso"):
         mod.Plotter1_1()
 
 

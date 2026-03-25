@@ -59,6 +59,18 @@ def main() -> None:
 
     generate_kwargs = build_generation_kwargs(processor)
     generate_kwargs.update(dict(model_spec.generation_defaults))
+    tokenizer = processor.tokenizer
+    if "eos_token_id" not in generate_kwargs:
+        unk = getattr(tokenizer, "unk_token_id", None)
+        im_end_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
+        if im_end_id is not None and im_end_id != unk:
+            generate_kwargs["eos_token_id"] = im_end_id
+        elif tokenizer.eos_token_id is not None:
+            generate_kwargs["eos_token_id"] = tokenizer.eos_token_id
+    pad = getattr(tokenizer, "pad_token_id", None)
+    if pad is None:
+        pad = tokenizer.eos_token_id
+    generate_kwargs.setdefault("pad_token_id", pad)
     generate_inference_records(
         model=model,
         processor=processor,

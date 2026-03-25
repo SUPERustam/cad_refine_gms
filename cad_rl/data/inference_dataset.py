@@ -18,7 +18,9 @@ def _should_use_hf_dataset(task_profile: Mapping[str, Any]) -> bool:
 class RawSTLInferenceDataset(Dataset):
     """Load raw STL files directly and render them for inference."""
 
-    def __init__(self, root: str | Path, *, recursive: bool = False, size: int | None = None) -> None:
+    def __init__(
+        self, root: str | Path, *, recursive: bool = False, size: int | None = None
+    ) -> None:
         root_path = Path(root).expanduser().resolve()
         if not root_path.is_dir():
             raise FileNotFoundError(f"Raw dataset root not found: {root_path}")

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import asdict
 from pathlib import Path
 
 import torch
@@ -14,6 +13,20 @@ except Exception:  # pragma: no cover
     process_vision_info = None
 
 from cad_rl.algorithms.frozen import configure_process_environment
+
+
+def _extract_assistant_text(decoded: str) -> str:
+    """Assistant span between chat markers (matches Qwen2-VL training / inference_cad_model example)."""
+    start_tag = "<|im_start|>assistant"
+    end_tag = "<|im_end|>"
+    if start_tag in decoded:
+        part = decoded.split(start_tag, maxsplit=1)[1]
+        if part.startswith("\n"):
+            part = part[1:]
+        if end_tag in part:
+            part = part.split(end_tag, maxsplit=1)[0]
+        return part.strip()
+    return decoded.strip()
 
 
 def _collate_for_qwen(batch, processor):
@@ -74,15 +87,15 @@ def generate_inference_records(
                 generated = model.generate(
                     **inputs, **generation_config["generate_kwargs"]
                 )
-                prompt_lengths = batch["attention_mask"].sum(dim=1).tolist()
-                generated_list = generated.tolist()
-                trimmed = [
-                    generated_list[idx][prompt_lengths[idx] :]
-                    for idx in range(len(prompt_lengths))
-                ]
-                texts = processor.tokenizer.batch_decode(
-                    trimmed, skip_special_tokens=True
-                )
+                # Full-sequence decode + assistant span (same as examples/inference_cad_model.py).
+                # Do not use attention_mask.sum() as a slice index with left padding — it counts
+                # real tokens but ignores leading pads, so it corrupts the prompt/completion boundary.
+                texts = []
+                for row_ids in generated:
+                    decoded = processor.tokenizer.decode(
+                        row_ids, skip_special_tokens=False
+                    )
+                    texts.append(_extract_assistant_text(decoded))
                 for mesh_path, text in zip(batch["mesh_path"], texts):
                     record = {
                         "task_id": getattr(task_spec, "task_id", "unknown"),

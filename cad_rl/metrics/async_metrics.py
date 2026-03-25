@@ -10,6 +10,8 @@ import subprocess, sys
 import base64, pickle, json, signal, select
 
 import numpy as np
+import trimesh
+from scipy.spatial import cKDTree
 
 import os
 
@@ -254,6 +256,8 @@ def compound_to_mesh(compound):
 
 
 def code_to_mesh_and_brep_less_safe(code_str, var_name="result"):
+    import cadquery as cq
+
     safe_ns = {"cq": cq}
     ns = safe_ns.copy()
     try:

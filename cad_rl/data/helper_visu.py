@@ -2,22 +2,22 @@ from __future__ import annotations
 
 from typing import Any
 
-try:  # pragma: no cover - optional dataset-prep dependency
-    from visualization_iso import Plotter as _BasePlotter
+try:  # pragma: no cover - optional dataset-prep dependency (may fail without PyVista, etc.)
+    from .visualization_iso import Plotter as _BasePlotter
 
-    _VIS_FOR_NORM_PARTS_IMPORT_ERROR: Exception | None = None
+    _VIS_RENDERER_IMPORT_ERROR: Exception | None = None
 except Exception as exc:  # pragma: no cover - exercised via explicit failure test
     _BasePlotter = None
-    _VIS_FOR_NORM_PARTS_IMPORT_ERROR = exc
+    _VIS_RENDERER_IMPORT_ERROR = exc
 
 
 def _raise_missing_vis_dependency() -> None:
     message = (
-        "Dataset preparation visualization requires the optional "
-        "'vis_for_norm_parts' dependency. Install it or run the dataset-prep "
-        "pipeline in an environment that provides it."
+        "Dataset preparation visualization could not load cad_rl.data.visualization_iso "
+        "(e.g. missing PyVista). Install rendering dependencies or run dataset-prep in an "
+        "environment that provides them."
     )
-    raise RuntimeError(message) from _VIS_FOR_NORM_PARTS_IMPORT_ERROR
+    raise RuntimeError(message) from _VIS_RENDERER_IMPORT_ERROR
 
 
 if _BasePlotter is not None:
@@ -29,6 +29,8 @@ if _BasePlotter is not None:
             cmap,
             apply_augs=False,
             color=None,
+            *args: Any,
+            **kwargs: Any,
         ):
             import numpy as np
             import pyvista as pv
@@ -136,5 +138,3 @@ else:
     class Plotter1_1:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             _raise_missing_vis_dependency()
-
-

@@ -6,6 +6,7 @@
 #SBATCH --output=slurm/inference.out.log
 #SBATCH --error=slurm/inference.err.log
 
+# Add e.g. --backend vllm (after mamba env has vllm) for faster inference on GPU.
 srun python infer.py \
   --task-profile configs/task.fusion360_test_mesh_1000_infer.yaml \
   --model-profile configs/model.qwen2_vl.yaml \

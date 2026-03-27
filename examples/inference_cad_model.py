@@ -19,13 +19,17 @@ Usage:
 import os, sys, json, argparse, warnings
 from pathlib import Path
 from typing import List, Tuple
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 import numpy as np
 
 warnings.filterwarnings("ignore")
 
 
-# from visualization_iso import Plotter  # noqa: E402
-from cad_rl.data.helper_visu import Plotter
+from cad_rl.data.visualization_iso import Plotter
 
 import torch  # noqa: E402
 from PIL import Image  # noqa: E402

@@ -1,3 +1,5 @@
-The image processor of type `Qwen2VLImageProcessor` is now loaded as a fast processor by default, even if the model checkpoint was saved with a slow processor. This is a breaking change and may produce slightly different outputs. To continue using the slow processor, instantiate this class with `use_fast=False`. Note that this behavior will be extended to all models in a future release.
-You have video processor config saved in `preprocessor.json` file which is deprecated. Video processor configs should be saved in their own `video_preprocessor.json` file. You can rename the file or load and save the processor back which renames it automatically. Loading from `preprocessor.json` will be removed in v5.0.
-[0m[33m2026-03-24 15:30:49.149 (  12.270s) [    7F345EA5B440]vtkXOpenGLRenderWindow.:1458  WARN| bad X server connection. DISPLAY=[0m
+Traceback (most recent call last):
+  File "/scratch/498rustam/cad_refine_m/examples/inference_cad_model.py", line 28, in <module>
+srun: error: cn42: task 0: Exited with exit code 1
+    from cad_rl.data.helper_visu import Plotter
+ModuleNotFoundError: No module named 'cad_rl'

@@ -29,7 +29,8 @@ def _extract_assistant_text(decoded: str) -> str:
     return decoded.strip()
 
 
-def _collate_for_qwen(batch, processor):
+def _qwen_batch_messages_texts_and_images(batch, processor):
+    """Shared Qwen2-VL prompt strings and vision inputs (matches training collate)."""
     messages = [
         [{"role": "user", "content": [{"type": "image", "image": sample["image"]}]}]
         for sample in batch
@@ -42,13 +43,24 @@ def _collate_for_qwen(batch, processor):
     ]
     if process_vision_info is None:
         images = [sample["image"] for sample in batch]
-        inputs = processor(text=texts, images=images, padding=True, return_tensors="pt")
+        videos = None
     else:
         images, videos = process_vision_info(messages)
+    mesh_paths = [str(sample["mesh_path"]) for sample in batch]
+    return texts, images, videos, mesh_paths
+
+
+def _collate_for_qwen(batch, processor):
+    texts, images, videos, mesh_paths = _qwen_batch_messages_texts_and_images(
+        batch, processor
+    )
+    if process_vision_info is None:
+        inputs = processor(text=texts, images=images, padding=True, return_tensors="pt")
+    else:
         inputs = processor(
             text=texts, images=images, videos=videos, padding=True, return_tensors="pt"
         )
-    inputs["mesh_path"] = [str(sample["mesh_path"]) for sample in batch]
+    inputs["mesh_path"] = mesh_paths
     return inputs
 
 

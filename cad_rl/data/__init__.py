@@ -5,6 +5,7 @@ from .hf_dataset import (
     load_prepared_hf_dataset,
 )
 from .inference_dataset import RawSTLInferenceDataset, load_inference_dataset
+from .helper_visu import Plotter1_1
 
 
 def prepare_dataset_main() -> None:
@@ -21,4 +22,5 @@ __all__ = [
     "RawSTLInferenceDataset",
     "load_inference_dataset",
     "prepare_dataset_main",
+    "Plotter1_1",
 ]

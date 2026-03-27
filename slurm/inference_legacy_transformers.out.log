@@ -1,0 +1,28 @@
+INFO 03-27 15:38:13 [__init__.py:241] Automatically detected platform cuda.
+INFO 03-27 15:38:19 [utils.py:326] non-default args: {'model': '/scratch/498rustam/cad_refine_m/rl_checkpoints_resume_32800/checkpoint-49600', 'trust_remote_code': True, 'disable_log_stats': True, 'limit_mm_per_prompt': {'image': 1}}
+INFO 03-27 15:38:30 [__init__.py:711] Resolved architecture: Qwen2VLForConditionalGeneration
+INFO 03-27 15:38:30 [__init__.py:1750] Using max model len 32768
+INFO 03-27 15:38:31 [scheduler.py:222] Chunked prefill is enabled with max_num_batched_tokens=8192.
+INFO 03-27 15:38:40 [__init__.py:241] Automatically detected platform cuda.
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:38:41 [core.py:636] Waiting for init message from front-end.
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:38:43 [core.py:74] Initializing a V1 LLM engine (v0.10.1.1) with config: model='/scratch/498rustam/cad_refine_m/rl_checkpoints_resume_32800/checkpoint-49600', speculative_config=None, tokenizer='/scratch/498rustam/cad_refine_m/rl_checkpoints_resume_32800/checkpoint-49600', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, override_neuron_config={}, tokenizer_revision=None, trust_remote_code=True, dtype=torch.bfloat16, max_seq_len=32768, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, disable_custom_all_reduce=False, quantization=None, enforce_eager=False, kv_cache_dtype=auto, device_config=cuda, decoding_config=DecodingConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_backend=''), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None), seed=0, served_model_name=/scratch/498rustam/cad_refine_m/rl_checkpoints_resume_32800/checkpoint-49600, enable_prefix_caching=True, chunked_prefill_enabled=True, use_async_output_proc=True, pooler_config=None, compilation_config={"level":3,"debug_dump_path":"","cache_dir":"","backend":"","custom_ops":[],"splitting_ops":["vllm.unified_attention","vllm.unified_attention_with_output","vllm.mamba_mixer2"],"use_inductor":true,"compile_sizes":[],"inductor_compile_config":{"enable_auto_functionalized_v2":false},"inductor_passes":{},"cudagraph_mode":1,"use_cudagraph":true,"cudagraph_num_of_warmups":1,"cudagraph_capture_sizes":[512,504,496,488,480,472,464,456,448,440,432,424,416,408,400,392,384,376,368,360,352,344,336,328,320,312,304,296,288,280,272,264,256,248,240,232,224,216,208,200,192,184,176,168,160,152,144,136,128,120,112,104,96,88,80,72,64,56,48,40,32,24,16,8,4,2,1],"cudagraph_copy_inputs":false,"full_cuda_graph":false,"pass_config":{},"max_capture_size":512,"local_cache_dir":null}
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:38:47 [parallel_state.py:1134] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, TP rank 0, EP rank 0
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:38:48 [topk_topp_sampler.py:50] Using FlashInfer for top-p & top-k sampling.
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:38:48 [gpu_model_runner.py:1953] Starting to load model /scratch/498rustam/cad_refine_m/rl_checkpoints_resume_32800/checkpoint-49600...
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:38:48 [gpu_model_runner.py:1985] Loading model from scratch...
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:38:49 [cuda.py:328] Using Flash Attention backend on V1 engine.
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:38:51 [default_loader.py:262] Loading weights took 2.02 seconds
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:38:51 [gpu_model_runner.py:2007] Model loading took 4.1511 GiB and 2.570418 seconds
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:38:51 [gpu_model_runner.py:2591] Encoder cache will be initialized with a budget of 16384 tokens, and profiled with 1 image items of the maximum feature size.
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:39:05 [backends.py:548] Using cache directory: /scratch/498rustam/.cache/vllm/torch_compile_cache/238bfdfd8b/rank_0_0/backbone for vLLM's torch.compile
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:39:05 [backends.py:559] Dynamo bytecode transform time: 5.96 s
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:39:09 [backends.py:194] Cache the graph for dynamic shape for later use
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:39:27 [backends.py:215] Compiling a graph for dynamic shape takes 21.74 s
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:39:32 [monitor.py:34] torch.compile takes 27.71 s in total
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:39:33 [gpu_worker.py:276] Available KV cache memory: 64.41 GiB
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:39:33 [kv_cache_utils.py:849] GPU KV cache size: 2,412,272 tokens
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:39:33 [kv_cache_utils.py:853] Maximum concurrency for 32,768 tokens per request: 73.62x
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:39:36 [gpu_model_runner.py:2708] Graph capturing finished in 3 secs, took 1.82 GiB
+[1;36m(EngineCore_0 pid=3997184)[0;0m INFO 03-27 15:39:36 [core.py:214] init engine (profile, create kv cache, warmup model) took 44.41 seconds
+INFO 03-27 15:39:37 [llm.py:298] Supported_tasks: ['generate']
+1000

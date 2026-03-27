@@ -1,0 +1,14 @@
+{
+  "task_id": "cadquery_v1",
+  "prepared_datasets": {
+    "test": "/scratch/498rustam/datasets/mcb_a_batch_groundtruth_1000"
+  },
+  "hf_dataset": false,
+  "prompt_profile_id": "qwen_vl_chat",
+  "render_profile_id": "cadquery_default",
+  "output_var_name": "result",
+  "normalization_mode": "fixed",
+  "default_eval_suites": ["quick", "standard", "full"],
+  "prompt_convention": "multimodal_chat",
+  "render_convention": "cadquery_compound"
+}

@@ -1,0 +1,21 @@
+Traceback (most recent call last):
+  File "/scratch/498rustam/cad_refine_m/examples/build_meshes.py", line 403, in <module>
+    evaluate(
+  File "/scratch/498rustam/cad_refine_m/examples/build_meshes.py", line 299, in evaluate
+    for f in os.listdir(pred_py_path)
+FileNotFoundError: [Errno 2] No such file or directory: '/scratch/498rustam/cad_refine_m/predictions/mcb_a_batch_groundtruth_vllm/'
+srun: error: cn32: task 0: Exited with exit code 1
+Traceback (most recent call last):
+  File "/scratch/498rustam/cad_refine_m/examples/build_meshes.py", line 403, in <module>
+    evaluate(
+  File "/scratch/498rustam/cad_refine_m/examples/build_meshes.py", line 299, in evaluate
+    for f in os.listdir(pred_py_path)
+FileNotFoundError: [Errno 2] No such file or directory: '/scratch/498rustam/cad_refine_m/predictions/deepcad_test_mesh_vllm/'
+srun: error: cn32: task 0: Exited with exit code 1
+Traceback (most recent call last):
+  File "/scratch/498rustam/cad_refine_m/examples/build_meshes.py", line 403, in <module>
+    evaluate(
+  File "/scratch/498rustam/cad_refine_m/examples/build_meshes.py", line 299, in evaluate
+    for f in os.listdir(pred_py_path)
+FileNotFoundError: [Errno 2] No such file or directory: '/scratch/498rustam/cad_refine_m/predictions/fusion360_test_mesh_vllm/'
+srun: error: cn32: task 0: Exited with exit code 1

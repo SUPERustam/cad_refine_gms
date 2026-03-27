@@ -1,0 +1,23 @@
+[00022847.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00022753.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+CD missing for 2.1429%
+IoU missing for 47.8571%
+Mean CD   : 4.260777
+Median CD : 1.334773
+Mean IoU  : 0.678619
+Completed in 0.2 min.
+
+CD missing for 0.0000%
+IoU missing for 1.4000%
+Mean CD   : 0.794883
+Median CD : 0.157013
+Mean IoU  : 0.914546
+Completed in 0.2 min.
+
+[111599_24f8599e_0000.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+CD missing for 0.3003%
+IoU missing for 4.7047%
+Mean CD   : 1.937307
+Median CD : 0.162706
+Mean IoU  : 0.852084
+Completed in 0.3 min.

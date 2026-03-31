@@ -1,0 +1,3 @@
+[0m[33m2026-03-31 08:35:50.770 (  22.295s) [    7F88E4D27440]vtkXOpenGLRenderWindow.:1458  WARN| bad X server connection. DISPLAY=[0m
+[0m[33m2026-03-31 11:28:17.355 (  20.746s) [    7FC6526F0440]vtkXOpenGLRenderWindow.:1458  WARN| bad X server connection. DISPLAY=[0m
+[0m[33m2026-03-31 12:18:01.129 (  11.214s) [    7FA424C33440]vtkXOpenGLRenderWindow.:1458  WARN| bad X server connection. DISPLAY=[0m

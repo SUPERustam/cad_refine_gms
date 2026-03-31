@@ -1,0 +1,39 @@
+MCB_A_batch
+[00036664.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00022693.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00044642.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00027598.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00027577.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00027732.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00022781.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00015118.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00027505.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00048276.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00027650.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00014913.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[00048192.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+CD missing for 0.8600%
+IoU missing for 4.4000%
+Mean CD   : 3.795136
+Median CD : 1.011950
+Mean IoU  : 0.485279
+Completed in 2.2 min.
+
+DeepCAD_test_mesh
+[00730444.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+CD missing for 0.1491%
+IoU missing for 0.2734%
+Mean CD   : 1.129400
+Median CD : 0.163540
+Mean IoU  : 0.899749
+Completed in 1.2 min.
+
+Fusion360_test_mesh
+[54509_e0930519_0000.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+[145643_0b6cfcf1_0000.stl] Export/metrics failed: could not broadcast input array from shape (0,) into shape (0,3,3)
+CD missing for 0.4638%
+IoU missing for 0.9855%
+Mean CD   : 1.606702
+Median CD : 0.163538
+Mean IoU  : 0.828586
+Completed in 0.4 min.

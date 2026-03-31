@@ -1,0 +1,9 @@
+Using device: cuda
+5000
+Done. Processed 5000 / 5000 STLs. Outputs -> predictions/mcb_a_batch_groundtruth
+Using device: cuda
+1725
+Done. Processed 1725 / 1725 STLs. Outputs -> predictions/fusion360_test_mesh
+Using device: cuda
+8046
+Done. Processed 8046 / 8046 STLs. Outputs -> predictions/deepcad_test_mesh

@@ -5,6 +5,7 @@
 
 import copy
 import os
+import random
 from contextlib import nullcontext
 
 from copy import deepcopy
@@ -16,12 +17,18 @@ from trl.trainer.utils import (
     pad,
 )
 
+import trl.trainer.grpo_trainer as trl_grpo_trainer
+
 from trl.trainer.grpo_trainer import nanstd, RepeatSampler
 from transformers import Trainer
 from trl import GRPOTrainer
 from trl.extras.profiling import profiling_context
 
 from grpo_loss import cppo_compute_loss, adv_select_top_samples
+
+
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
 
 
 class TopSampleGRPOTrainer(GRPOTrainer):
@@ -364,6 +371,119 @@ class TopSampleGRPOTrainer(GRPOTrainer):
             output["image_sizes"] = prompt_inputs["image_sizes"]
 
         return output
+
+    def log(self, logs, start_time=None):
+        """
+        Rich tables from TRL truncate prompt/completion columns when stdout is not a TTY (e.g. Slurm *.out).
+        With GRPO_LOG_FULL_COMPLETIONS=1, skip the huge Rich sample table (it can be thousands of lines for
+        large generation_batch_size) and print plain-text full prompts/completions right after the metrics line.
+        """
+        skip_rich = _env_truthy("GRPO_LOG_FULL_COMPLETIONS")
+        _orig_print = trl_grpo_trainer.print_prompt_completions_sample
+        if skip_rich:
+            trl_grpo_trainer.print_prompt_completions_sample = lambda *args, **kwargs: (
+                None
+            )
+        try:
+            super().log(logs, start_time)
+        finally:
+            if skip_rich:
+                trl_grpo_trainer.print_prompt_completions_sample = _orig_print
+
+        if not skip_rich:
+            return
+        if not self.accelerator.is_main_process or not getattr(
+            self, "log_completions", False
+        ):
+            return
+        self._print_full_completion_samples()
+
+    def _print_full_completion_samples(self):
+        """Plain-text full prompts/completions (see log())."""
+        if _env_truthy("GRPO_LOG_GROUP_BY_PROMPT"):
+            self._print_full_completions_grouped_by_prompt()
+            return
+
+        prompts = list(self._logs["prompt"])
+        completions = list(self._logs["completion"])
+        advantages = list(self._logs["advantages"])
+        n = len(prompts)
+        if n == 0:
+            return
+        num = self.num_completions_to_print
+        if num is not None and num >= n:
+            num = None
+        if num is not None and num <= 0:
+            return
+        if num is not None:
+            indices = random.sample(range(n), num)
+        else:
+            cap = int(os.environ.get("GRPO_LOG_FULL_MAX", "16"))
+            if n <= cap:
+                indices = list(range(n))
+            else:
+                indices = random.sample(range(n), cap)
+        print(
+            f"\n[GRPO_LOG_FULL_COMPLETIONS] step={self.state.global_step} "
+            f"showing {len(indices)} of {n} samples\n",
+            flush=True,
+        )
+        for j, i in enumerate(indices):
+            print(f"--- full sample {j} (batch index {i}) ---", flush=True)
+            for name in self.reward_func_names:
+                r = self._logs["rewards"][name][i]
+                print(f"  {name}: {r:.6g}", flush=True)
+            print(f"  advantage: {advantages[i]:.6g}\n", flush=True)
+            print("PROMPT:\n", prompts[i], "\n", sep="", flush=True)
+            print("COMPLETION:\n", completions[i], "\n", sep="", flush=True)
+
+    def _print_full_completions_grouped_by_prompt(self):
+        """
+        For each unique prompt, GRPO repeats num_generations rollouts; group them so you can compare
+        completions for the same input. GRPO_LOG_PROMPT_GROUPS (default 1) = how many distinct prompts to dump.
+        """
+        prompts = list(self._logs["prompt"])
+        completions = list(self._logs["completion"])
+        advantages = list(self._logs["advantages"])
+        n = len(prompts)
+        if n == 0:
+            return
+        by_prompt = {}
+        for i in range(n):
+            p = prompts[i]
+            by_prompt.setdefault(p, []).append(i)
+
+        unique_in_order = []
+        seen = set()
+        for i in range(n):
+            p = prompts[i]
+            if p not in seen:
+                seen.add(p)
+                unique_in_order.append(p)
+
+        num_groups = max(1, int(os.environ.get("GRPO_LOG_PROMPT_GROUPS", "1")))
+        chosen = unique_in_order[:num_groups]
+
+        print(
+            f"\n[GRPO_LOG_GROUP_BY_PROMPT] step={self.state.global_step} "
+            f"showing {len(chosen)} distinct prompt(s), all completions each "
+            f"(num_generations={self.num_generations})\n",
+            flush=True,
+        )
+        for g, prompt_text in enumerate(chosen):
+            idxs = by_prompt[prompt_text]
+            print(
+                f"\n========== prompt group {g} ({len(idxs)} completions) ==========\n",
+                flush=True,
+            )
+            print("PROMPT:\n", prompt_text, "\n", sep="", flush=True)
+            for rank, i in enumerate(idxs):
+                print(f"\n--- variant {rank} (batch index {i}) ---", flush=True)
+                for name in self.reward_func_names:
+                    r = self._logs["rewards"][name][i]
+                    print(f"  {name}: {r:.6g}", flush=True)
+                print(f"  advantage: {advantages[i]:.6g}\n", flush=True)
+                print("COMPLETION:\n", completions[i], "\n", sep="", flush=True)
 
     def _load_optimizer_and_scheduler(self, checkpoint):
         """Load optimizer and scheduler from checkpoint; if param groups mismatch (e.g. different script/config), skip and continue with fresh optimizer."""

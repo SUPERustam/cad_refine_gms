@@ -93,7 +93,7 @@ class Plotter:
         apply_augs=False,
         color=None,
         scale=True,
-    ):  
+    ):
         if isinstance(mesh_path, Trimesh):
             mesh = pv.from_trimesh(mesh_path)
         else:

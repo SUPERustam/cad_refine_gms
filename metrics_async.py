@@ -265,14 +265,14 @@ def render_based_mae_similarity(gt_file, pred_mesh):
     try:
         gt_img = plotter._get_img(
             gt_file, plotter.cmap_gt, apply_augs=False, color=(0, 255, 0), scale=True
-        )
+        )  # green channel
         pred_img = plotter._get_img(
             pred_mesh,
             plotter.cmap_pred,
             apply_augs=False,
-            color=(0, 255, 0),
+            color=(255, 0, 0),
             scale=True,
-        )
+        )  # red channel
         if gt_img is None or pred_img is None:
             raise ValueError("GT or pred image is None")
         gt_arr = np.array(gt_img)
@@ -280,10 +280,9 @@ def render_based_mae_similarity(gt_file, pred_mesh):
         if gt_arr.shape != pred_arr.shape:
             raise ValueError("Matrices must have the same shape")
         try:
-            gt_arr = gt_arr[
-                :714, :, 1
-            ]  # remove isometric views and leave only green channel
-            pred_arr = pred_arr[:714, :, 1]
+            # remove isometric views and leave only green channel
+            gt_arr = gt_arr[:714, :, 1]
+            pred_arr = pred_arr[:714, :, 0]
         except Exception:
             raise ValueError(
                 "GT or pred array is not valid for removing isometric views/green channel"

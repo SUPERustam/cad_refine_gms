@@ -229,9 +229,9 @@ def adv_select_top_samples(self, inputs, num_generations: int, top_samples: int)
     completion_ids = inputs["completion_ids"]
     group_size = self.num_generations
     batch_size = completion_ids.size(0)
-    assert (
-        batch_size % group_size == 0
-    ), f"inputs must be B * num_generations, got B : {batch_size} G : {group_size}"
+    assert batch_size % group_size == 0, (
+        f"inputs must be B * num_generations, got B : {batch_size} G : {group_size}"
+    )
     num_prompts = batch_size // group_size
     device = completion_ids.device
 
@@ -270,7 +270,10 @@ def cppo_compute_loss(
         inputs, num_generations=self.num_generations, top_samples=self.top_samples
     )
 
-    prompt_ids, prompt_mask = selected_inputs["prompt_ids"], selected_inputs["prompt_mask"]
+    prompt_ids, prompt_mask = (
+        selected_inputs["prompt_ids"],
+        selected_inputs["prompt_mask"],
+    )
     completion_ids, completion_mask = (
         selected_inputs["completion_ids"],
         selected_inputs["completion_mask"],
@@ -300,7 +303,9 @@ def cppo_compute_loss(
     if self.importance_sampling_level == "token":
         log_importance_weights = log_ratio
     elif self.importance_sampling_level == "sequence":
-        log_importance_weights = (log_ratio * completion_mask).sum(-1) / completion_mask.sum(-1).clamp(min=1.0)
+        log_importance_weights = (log_ratio * completion_mask).sum(
+            -1
+        ) / completion_mask.sum(-1).clamp(min=1.0)
         log_importance_weights = log_importance_weights.unsqueeze(-1)
     else:
         raise ValueError(
@@ -330,7 +335,10 @@ def cppo_compute_loss(
 
     per_token_loss = -torch.min(per_token_loss1, per_token_loss2)
     if self.loss_type == "grpo":
-        loss = ((per_token_loss * completion_mask).sum(-1) / completion_mask.sum(-1).clamp(min=1.0)).mean()
+        loss = (
+            (per_token_loss * completion_mask).sum(-1)
+            / completion_mask.sum(-1).clamp(min=1.0)
+        ).mean()
         loss = loss / self.current_gradient_accumulation_steps
     else:
         loss = (per_token_loss * completion_mask).sum() / (
@@ -357,10 +365,14 @@ def cppo_compute_loss(
     high_clip = masked_batch_mean(is_high_clipped.float())
     clip_ratio = masked_batch_mean(is_region_clipped.float())
     gathered_low_clip = self.accelerator.gather(low_clip)
-    self._metrics[mode]["clip_ratio/low_mean"].append(gathered_low_clip.nanmean().item())
+    self._metrics[mode]["clip_ratio/low_mean"].append(
+        gathered_low_clip.nanmean().item()
+    )
     self._metrics[mode]["clip_ratio/low_min"].append(nanmin(gathered_low_clip).item())
     gathered_high_clip = self.accelerator.gather(high_clip)
-    self._metrics[mode]["clip_ratio/high_mean"].append(gathered_high_clip.nanmean().item())
+    self._metrics[mode]["clip_ratio/high_mean"].append(
+        gathered_high_clip.nanmean().item()
+    )
     self._metrics[mode]["clip_ratio/high_max"].append(nanmax(gathered_high_clip).item())
     gathered_clip_ratio = self.accelerator.gather(clip_ratio)
     self._metrics[mode]["clip_ratio/region_mean"].append(
@@ -431,7 +443,9 @@ class TopSampleGRPOTrainer(GRPOTrainer):
                     all_images = gather_object(images)
                 if self.accelerator.is_main_process:
                     ordered_set_of_prompts = all_prompts_text[:: self.num_generations]
-                    ordered_set_of_images = all_images[:: self.num_generations] if has_images else None
+                    ordered_set_of_images = (
+                        all_images[:: self.num_generations] if has_images else None
+                    )
                     with profiling_context(self, "vLLM.generate"):
                         completion_ids = self.vllm_client.generate(
                             prompts=ordered_set_of_prompts,
@@ -455,7 +469,9 @@ class TopSampleGRPOTrainer(GRPOTrainer):
                 )
                 completion_ids = completion_ids[process_slice]
 
-            completion_ids = [torch.tensor(ids, device=device) for ids in completion_ids]
+            completion_ids = [
+                torch.tensor(ids, device=device) for ids in completion_ids
+            ]
             completion_ids = pad(completion_ids, padding_value=self.pad_token_id)
             prompt_completion_ids = torch.cat([prompt_ids, completion_ids], dim=1)
         else:
@@ -470,7 +486,10 @@ class TopSampleGRPOTrainer(GRPOTrainer):
                 nullcontext(),
             ):
                 unwrapped_model.gradient_checkpointing_disable()
-                prompt_inputs["input_ids"], prompt_inputs["attention_mask"] = (prompt_ids, prompt_mask)
+                prompt_inputs["input_ids"], prompt_inputs["attention_mask"] = (
+                    prompt_ids,
+                    prompt_mask,
+                )
                 prompt_completion_ids = unwrapped_model.generate(
                     **prompt_inputs,
                     generation_config=self.generation_config,
@@ -481,9 +500,13 @@ class TopSampleGRPOTrainer(GRPOTrainer):
             completion_ids = prompt_completion_ids[:, prompt_length:]
 
         is_eos = completion_ids == self.eos_token_id
-        eos_idx = torch.full((is_eos.size(0),), is_eos.size(1), dtype=torch.long, device=device)
+        eos_idx = torch.full(
+            (is_eos.size(0),), is_eos.size(1), dtype=torch.long, device=device
+        )
         eos_idx[is_eos.any(dim=1)] = is_eos.int().argmax(dim=1)[is_eos.any(dim=1)]
-        sequence_indices = torch.arange(is_eos.size(1), device=device).expand(is_eos.size(0), -1)
+        sequence_indices = torch.arange(is_eos.size(1), device=device).expand(
+            is_eos.size(0), -1
+        )
         completion_mask = (sequence_indices <= eos_idx.unsqueeze(1)).int()
         completion_ids_list = [
             [token.item() for token, mask_row in zip(row, mask) if mask_row]
@@ -492,7 +515,9 @@ class TopSampleGRPOTrainer(GRPOTrainer):
         completion_lengths = completion_mask.sum(1)
         if self.mask_truncated_completions:
             truncated_completions = ~is_eos.any(dim=1)
-            completion_mask = completion_mask * (~truncated_completions).unsqueeze(1).int()
+            completion_mask = (
+                completion_mask * (~truncated_completions).unsqueeze(1).int()
+            )
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
         logits_to_keep = completion_ids.size(1)
 
@@ -560,7 +585,9 @@ class TopSampleGRPOTrainer(GRPOTrainer):
         )
         agg_terminated_with_eos = self.accelerator.gather(is_eos.any(dim=1))
         term_completion_lengths = agg_completion_lengths[agg_terminated_with_eos]
-        clipped_completions_ratio = 1 - len(term_completion_lengths) / len(agg_completion_lengths)
+        clipped_completions_ratio = 1 - len(term_completion_lengths) / len(
+            agg_completion_lengths
+        )
         self._metrics[mode]["completions/clipped_ratio"].append(
             clipped_completions_ratio
         )

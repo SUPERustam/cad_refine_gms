@@ -1,6 +1,6 @@
 # Troubleshooting
 
-## `resume_train.py` cannot find a checkpoint
+## `cli.py resume-train` cannot find a checkpoint
 
 If resume fails with a checkpoint lookup error, verify:
 
@@ -8,7 +8,7 @@ If resume fails with a checkpoint lookup error, verify:
 - `checkpoints/index.jsonl` exists for that run, or `checkpoints/latest.txt` points at a real checkpoint
 - the `--checkpoint` value is one of `latest`, `best`, a recorded step, or an explicit path
 
-Use `python train.py --config configs/demo/train.yaml --dry-run` to confirm you are resolving the expected system config and run root.
+Use `python cli.py train --config configs/demo/train.yaml --dry-run` to confirm you are resolving the expected system config and run root.
 
 ## Prepared dataset path or split is missing
 
@@ -18,11 +18,11 @@ Check:
 
 - the resolved task config contains the split you requested, for example `train` or `val`
 - the on-disk dataset path exists
-- the dataset was written with `prepare_dataset.py`
+- the dataset was written with `cli.py prepare-dataset`
 
 Inference will fail if `infer.split` points at a split that is missing from `data.prepared_datasets`.
 
-## `prepare_dataset.py` fails with a `vis_for_norm_parts` message
+## `cli.py prepare-dataset` fails with a `vis_for_norm_parts` message
 
 Dataset preparation uses an optional rendering dependency that is intentionally isolated from training, inference, evaluation, and runtime code.
 
@@ -81,9 +81,9 @@ Inspect the generated inference JSONL and evaluation outputs before changing tra
 
 ## Evaluation output looks incomplete
 
-`evaluate.py` writes two files based on the resolved `eval.output_path`:
+`cli.py evaluate` writes two files based on the resolved `eval.output_path`:
 
 - the per-sample rows at the configured output path
 - the aggregate summary at the same path with suffix `.summary.json`
 
-`compare_runs.py` reads the summary JSON paths configured in `compare.summaries`, not the raw per-sample JSONL.
+`cli.py compare-runs` reads the summary JSON paths configured in `compare.summaries`, not the raw per-sample JSONL.

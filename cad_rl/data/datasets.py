@@ -10,8 +10,10 @@ from typing import Any, Iterable, List, Mapping
 try:  # pragma: no cover - optional dependency
     from torch.utils.data import Dataset
 except Exception:  # pragma: no cover - lightweight test environments
+
     class Dataset:  # type: ignore[no-redef]
         pass
+
 
 from cad_rl.data.render import Plotter1_1
 
@@ -82,7 +84,9 @@ class PreparedDatasetManifest:
         return cls(**payload)
 
 
-def fingerprint_prepared_dataset(dataset_path: str | Path) -> PreparedDatasetFingerprint:
+def fingerprint_prepared_dataset(
+    dataset_path: str | Path,
+) -> PreparedDatasetFingerprint:
     path = Path(dataset_path)
     if not path.exists():
         raise FileNotFoundError(path)
@@ -194,7 +198,9 @@ def _should_use_hf_dataset(task_profile: Mapping[str, Any]) -> bool:
 
 
 class RawSTLInferenceDataset(Dataset):
-    def __init__(self, root: str | Path, *, recursive: bool = False, size: int | None = None) -> None:
+    def __init__(
+        self, root: str | Path, *, recursive: bool = False, size: int | None = None
+    ) -> None:
         root_path = Path(root).expanduser().resolve()
         if not root_path.is_dir():
             raise FileNotFoundError(f"Raw dataset root not found: {root_path}")

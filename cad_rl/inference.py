@@ -152,7 +152,10 @@ def run_inference_from_resolved(config: RunConfig) -> Path:
     )
     generate_kwargs = build_generation_kwargs(processor)
     generate_kwargs.update(dict(config.model.generation_defaults))
-    output_path = config.infer.output_path or f"runs/{config.experiment_id}/infer/inference_records.jsonl"
+    output_path = (
+        config.infer.output_path
+        or f"runs/{config.experiment_id}/infer/inference_records.jsonl"
+    )
     return generate_inference_records(
         model=model,
         processor=processor,

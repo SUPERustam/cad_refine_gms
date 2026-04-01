@@ -406,7 +406,9 @@ class RuntimeSpec:
         return cls(
             seed=int(payload.get("seed", 16)),
             dataset_split=str(payload.get("dataset_split", "train")),
-            run_id=None if payload.get("run_id") is None else str(payload.get("run_id")),
+            run_id=None
+            if payload.get("run_id") is None
+            else str(payload.get("run_id")),
             git_revision=None
             if payload.get("git_revision") is None
             else str(payload.get("git_revision")),
@@ -417,9 +419,15 @@ class RuntimeSpec:
             if payload.get("dataset_fingerprint") is None
             else str(payload.get("dataset_fingerprint")),
             resume_path=str(payload.get("resume_path", "")),
-            scheduler_training_steps=int(payload.get("scheduler_training_steps", 200000)),
+            scheduler_training_steps=int(
+                payload.get("scheduler_training_steps", 200000)
+            ),
             extras={
-                **{k: deepcopy(v) for k, v in payload.items() if k not in consumed | {"extras"}},
+                **{
+                    k: deepcopy(v)
+                    for k, v in payload.items()
+                    if k not in consumed | {"extras"}
+                },
                 **{k: deepcopy(v) for k, v in extras_payload.items()},
             },
         )
@@ -640,7 +648,9 @@ def _load_system_document(
     system_reference: str | Path | None,
 ) -> tuple[dict[str, Any], str | None]:
     system_doc = dict(document.get("system", {}))
-    reference = document.get("system_profile") if system_reference is None else system_reference
+    reference = (
+        document.get("system_profile") if system_reference is None else system_reference
+    )
     if reference is None:
         return system_doc, None
 

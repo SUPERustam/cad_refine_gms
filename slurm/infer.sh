@@ -6,5 +6,5 @@
 #SBATCH --output=slurm/inference.out
 #SBATCH --error=slurm/inference.err
 
-srun python infer.py \
+srun python cli.py infer \
   --config configs/demo/infer.yaml

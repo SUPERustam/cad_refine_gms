@@ -14,7 +14,14 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_dataset_root_modules_are_gone() -> None:
     assert not (ROOT / "multiview_dataset.py").exists()
     assert not (ROOT / "helper_visu.py").exists()
-    assert (ROOT / "prepare_dataset.py").exists()
+    assert (ROOT / "cli.py").exists()
+    assert not (ROOT / "prepare_dataset.py").exists()
+    assert not (ROOT / "train.py").exists()
+    assert not (ROOT / "resume_train.py").exists()
+    assert not (ROOT / "infer.py").exists()
+    assert not (ROOT / "build_meshes.py").exists()
+    assert not (ROOT / "evaluate.py").exists()
+    assert not (ROOT / "compare_runs.py").exists()
 
 
 def test_flat_legacy_config_profiles_are_gone() -> None:
@@ -27,7 +34,7 @@ def test_dataset_package_import_smoke() -> None:
     import cad_rl.data  # noqa: F401
     import cad_rl.config  # noqa: F401
     import cad_rl.runtime  # noqa: F401
-    import prepare_dataset  # noqa: F401
+    import cli  # noqa: F401
 
     pytest.importorskip("torch")
     import cad_rl.data.prepare  # noqa: F401
@@ -65,8 +72,8 @@ def test_rendering_helpers_stay_under_data_boundary() -> None:
 
 def test_evaluation_does_not_execute_cad_code() -> None:
     evaluation_text = (ROOT / "cad_rl" / "evaluation.py").read_text(encoding="utf-8")
-    build_meshes_text = (ROOT / "build_meshes.py").read_text(encoding="utf-8")
+    cli_text = (ROOT / "cli.py").read_text(encoding="utf-8")
 
     assert "execute_code_to_mesh" not in evaluation_text
     assert "cadquery" not in evaluation_text
-    assert "build_meshes_from_resolved" in build_meshes_text
+    assert "Unified CAD RL stage CLI" in cli_text

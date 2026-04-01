@@ -85,8 +85,14 @@ def test_jsonl_records_and_comparison_report(tmp_path: Path) -> None:
     )
     summary_a = tmp_path / "a.summary.json"
     summary_b = tmp_path / "b.summary.json"
-    summary_a.write_text(json.dumps({"run_id": "run-a", "iou_mean": 0.8, "cd_mean": 0.1}), encoding="utf-8")
-    summary_b.write_text(json.dumps({"run_id": "run-b", "iou_mean": 0.9, "cd_mean": 0.2}), encoding="utf-8")
+    summary_a.write_text(
+        json.dumps({"run_id": "run-a", "iou_mean": 0.8, "cd_mean": 0.1}),
+        encoding="utf-8",
+    )
+    summary_b.write_text(
+        json.dumps({"run_id": "run-b", "iou_mean": 0.9, "cd_mean": 0.2}),
+        encoding="utf-8",
+    )
 
     rows = load_jsonl(records_path)
     report = compare_summaries([summary_a, summary_b], tmp_path / "report.json")

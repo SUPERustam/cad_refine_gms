@@ -109,7 +109,10 @@ if _BasePlotter is not None:
 
             collage = Image.new(
                 "RGB",
-                (round(self.cols * self.view_img_size), round(self.rows * self.view_img_size)),
+                (
+                    round(self.cols * self.view_img_size),
+                    round(self.rows * self.view_img_size),
+                ),
                 color="white",
             )
             for index, img in enumerate(view_images):

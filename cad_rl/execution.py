@@ -130,9 +130,7 @@ def timed_process_text(arg, timeout=100):
     return result
 
 
-def execute_generated_codes(
-    texts, meshes, max_workers=None, var_name="result"
-):
+def execute_generated_codes(texts, meshes, max_workers=None, var_name="result"):
     args = [(text, gt, var_name) for text, gt in zip(texts, meshes)]
     if POOL is None:
         return [_execute_single_text(*arg) for arg in args]
@@ -180,7 +178,9 @@ def build_mesh_records(
     with manifest_path.open("w", encoding="utf-8") as handle:
         for index, item in enumerate(records):
             record = (
-                item if isinstance(item, InferenceRecord) else InferenceRecord.from_mapping(item)
+                item
+                if isinstance(item, InferenceRecord)
+                else InferenceRecord.from_mapping(item)
             )
             started = time.time()
             mesh = execute_code_to_mesh(record.raw_generation or "", var_name=var_name)

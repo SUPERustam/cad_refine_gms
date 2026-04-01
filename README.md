@@ -2,23 +2,23 @@
 
 Config-driven CAD RL research repo with a filesystem run registry and a flat stage-module layout under `cad_rl/`.
 
-## Supported scripts
+## Supported CLI
 
-- `prepare_dataset.py`
-- `train.py`
-- `resume_train.py`
-- `infer.py`
-- `build_meshes.py`
-- `evaluate.py`
-- `compare_runs.py`
+- `cli.py prepare-dataset`
+- `cli.py train`
+- `cli.py resume-train`
+- `cli.py infer`
+- `cli.py build-meshes`
+- `cli.py evaluate`
+- `cli.py compare-runs`
 
-Everything else is internal package code under `cad_rl/`. Root-level reusable modules are no longer part of the supported interface.
+Everything else is internal package code under `cad_rl/`. The repo root keeps one public Python entrypoint only: `cli.py`.
 
 ## Package layout
 
 The repo now follows one boundary rule:
 
-- thin public CLI entrypoints stay in the repo root
+- one thin public CLI entrypoint stays in the repo root
 - reusable Python code lives under `cad_rl/`
 
 Current internal layout:
@@ -58,27 +58,27 @@ The resolved config is grouped by stage:
 Prepare a serialized Hugging Face dataset:
 
 ```bash
-python prepare_dataset.py --config configs/demo/prepare_dataset.yaml --dry-run
+python cli.py prepare-dataset --config configs/demo/prepare_dataset.yaml --dry-run
 ```
 
-`prepare_dataset.py` is a thin wrapper over `cad_rl.data`. Its rendering path may require the optional `vis_for_norm_parts` dependency depending on your dataset-prep environment.
+`cli.py prepare-dataset` is a thin wrapper over `cad_rl.data`. Its rendering path may require the optional `vis_for_norm_parts` dependency depending on your dataset-prep environment.
 
 Inspect the fully resolved training contract without launching training:
 
 ```bash
-python train.py --config configs/demo/train.yaml --dry-run
+python cli.py train --config configs/demo/train.yaml --dry-run
 ```
 
 Start a run:
 
 ```bash
-python train.py --config configs/demo/train.yaml
+python cli.py train --config configs/demo/train.yaml
 ```
 
 Resume from the filesystem checkpoint registry:
 
 ```bash
-python resume_train.py \
+python cli.py resume-train \
   --config configs/demo/train.yaml \
   --checkpoint latest
 ```
@@ -86,10 +86,10 @@ python resume_train.py \
 Run the post-training workflow:
 
 ```bash
-python infer.py --config configs/demo/infer.yaml
-python build_meshes.py --config configs/demo/build_meshes.yaml
-python evaluate.py --config configs/demo/evaluate.yaml
-python compare_runs.py --config configs/demo/compare.yaml
+python cli.py infer --config configs/demo/infer.yaml
+python cli.py build-meshes --config configs/demo/build_meshes.yaml
+python cli.py evaluate --config configs/demo/evaluate.yaml
+python cli.py compare-runs --config configs/demo/compare.yaml
 ```
 
 ## Run artifacts

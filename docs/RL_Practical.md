@@ -15,13 +15,13 @@ Follow [Setup](Setup.md) first:
 Launch a run from a stage config:
 
 ```bash
-python train.py --config configs/demo/train.yaml
+python cli.py train --config configs/demo/train.yaml
 ```
 
 Inspect the resolved contract without starting training:
 
 ```bash
-python train.py --config configs/demo/train.yaml --dry-run
+python cli.py train --config configs/demo/train.yaml --dry-run
 ```
 
 The training pipeline resolves the stage config, fingerprints the prepared training dataset when possible, creates a run directory under the configured `system.run_root`, and writes:
@@ -39,7 +39,7 @@ If `PyYAML` is available, YAML mirrors are written next to the JSON files.
 Resume uses the filesystem run registry instead of shell logic:
 
 ```bash
-python resume_train.py \
+python cli.py resume-train \
   --config configs/demo/train.yaml \
   --checkpoint latest
 ```
@@ -76,7 +76,7 @@ The training contract comes from the resolved stage config. The current code pat
 Inference is stage-config driven:
 
 ```bash
-python infer.py --config configs/demo/infer.yaml
+python cli.py infer --config configs/demo/infer.yaml
 ```
 
 The output is JSONL. Each row contains runtime inference records resolved from the stage config, including the sample id, checkpoint reference, raw generation, wrapped code, timing, and metadata.
@@ -86,7 +86,7 @@ The output is JSONL. Each row contains runtime inference records resolved from t
 Materialize meshes from inference JSONL:
 
 ```bash
-python build_meshes.py --config configs/demo/build_meshes.yaml
+python cli.py build-meshes --config configs/demo/build_meshes.yaml
 ```
 
 The mesh pipeline writes:
@@ -101,7 +101,7 @@ Rows are marked `ok` or `invalid`.
 Evaluate built mesh artifacts:
 
 ```bash
-python evaluate.py --config configs/demo/evaluate.yaml
+python cli.py evaluate --config configs/demo/evaluate.yaml
 ```
 
 The evaluation pipeline writes:
@@ -122,7 +122,7 @@ Current summary fields include:
 Compare one or more summary files through the stage config:
 
 ```bash
-python compare_runs.py --config configs/demo/compare.yaml
+python cli.py compare-runs --config configs/demo/compare.yaml
 ```
 
 The report contains:

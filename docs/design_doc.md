@@ -12,7 +12,7 @@ The design should optimize for:
 
 - one obvious place for each responsibility
 - one obvious module for each stage
-- thin public CLIs at the repo root
+- one thin public CLI at the repo root
 - config-driven runs
 - simple stage handoffs on disk
 - no speculative abstraction layers
@@ -23,13 +23,13 @@ If there is only one implementation today, keep one implementation today. Add a 
 ## Project Rules
 
 - Root Python files are public CLIs only:
-  `prepare_dataset.py`, `train.py`, `resume_train.py`, `infer.py`, `build_meshes.py`, `evaluate.py`, `compare_runs.py`
+  `cli.py`
 - Reusable code lives under `cad_rl/`
 - Use flat stage modules under `cad_rl/`: `training`, `inference`, `execution`, `evaluation`, `comparison`
 - `cad_rl.data` is the only place allowed to contain dataset-prep rendering code
 - optional `vis_for_norm_parts` support must stay inside `cad_rl.data`
 - training, inference, evaluation, and runtime code must not depend on dataset-prep-only rendering helpers
-- CLIs stay thin and delegate into those package modules
+- The root CLI stays thin and delegates into those package modules
 - Keep one active config model and one active runtime record model
 - Do not keep duplicate package layers such as separate `pipelines`, `specs`, or tiny forwarding packages
 - filesystem artifacts are the source of truth for stage outputs and resume state
@@ -69,13 +69,8 @@ cad_refine_gms/
 ├── docs/
 │   └── design_doc.md
 ├── tests/
-├── prepare_dataset.py
-├── train.py
-├── resume_train.py
-├── infer.py
-├── build_meshes.py
-├── evaluate.py
-└── compare_runs.py
+├── cli.py
+└── README.md
 ```
 
 Files and packages to remove after moving code:
@@ -230,18 +225,18 @@ This is the only place where optional rendering dependencies are allowed.
 
 ## Stage Contracts
 
-Each CLI should read config, call one package function, and write artifacts to disk.
+Each CLI subcommand should read config, call one package function, and write artifacts to disk.
 
 CLI to module mapping:
 
-- `prepare_dataset.py` -> `cad_rl.data.prepare`
-- `train.py` and `resume_train.py` -> `cad_rl.training`
-- `infer.py` -> `cad_rl.inference`
-- `build_meshes.py` -> `cad_rl.execution`
-- `evaluate.py` -> `cad_rl.evaluation`
-- `compare_runs.py` -> `cad_rl.comparison`
+- `cli.py prepare-dataset` -> `cad_rl.data.prepare`
+- `cli.py train` and `cli.py resume-train` -> `cad_rl.training`
+- `cli.py infer` -> `cad_rl.inference`
+- `cli.py build-meshes` -> `cad_rl.execution`
+- `cli.py evaluate` -> `cad_rl.evaluation`
+- `cli.py compare-runs` -> `cad_rl.comparison`
 
-### `prepare_dataset.py`
+### `cli.py prepare-dataset`
 
 Input:
 
@@ -254,7 +249,7 @@ Output:
 - prepared dataset on disk
 - prepared dataset manifest
 
-### `train.py` and `resume_train.py`
+### `cli.py train` and `cli.py resume-train`
 
 Input:
 
@@ -269,7 +264,7 @@ Output:
 - run manifest
 - checkpoints
 
-### `infer.py`
+### `cli.py infer`
 
 Input:
 
@@ -282,7 +277,7 @@ Output:
 
 - `InferenceRecord` JSONL
 
-### `build_meshes.py`
+### `cli.py build-meshes`
 
 Input:
 
@@ -293,7 +288,7 @@ Output:
 - exported meshes
 - `MeshRecord` JSONL
 
-### `evaluate.py`
+### `cli.py evaluate`
 
 Input:
 
@@ -304,7 +299,7 @@ Output:
 - `EvalRecord` JSONL
 - summary JSON
 
-### `compare_runs.py`
+### `cli.py compare-runs`
 
 Input:
 
@@ -316,11 +311,15 @@ Output:
 
 ## CLI Contract
 
-Every public CLI should use the same shape:
+Every public CLI subcommand should use the same shape:
 
 - `--config` required
 - `--system` optional
 - `--dry-run` optional
+
+Resume also keeps:
+
+- `--checkpoint` optional
 
 Avoid ad hoc workflow flags for things that belong in config.
 

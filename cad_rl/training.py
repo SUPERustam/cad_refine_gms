@@ -8,7 +8,12 @@ from typing import Any, Mapping
 
 from cad_rl.config import RunConfig, resolve_run_config, to_serializable
 from cad_rl.data import fingerprint_prepared_dataset
-from cad_rl.runtime import RunManifest, RunRegistry, materialize_resolved_run, select_checkpoint
+from cad_rl.runtime import (
+    RunManifest,
+    RunRegistry,
+    materialize_resolved_run,
+    select_checkpoint,
+)
 
 
 def _utc_stamp() -> str:

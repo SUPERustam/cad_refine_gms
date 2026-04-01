@@ -25,7 +25,9 @@ def export_comparison_contract(config: RunConfig) -> dict:
     return to_serializable(config)
 
 
-def compare_summaries(summary_paths: list[str | Path], output_path: str | Path) -> ComparisonReport:
+def compare_summaries(
+    summary_paths: list[str | Path], output_path: str | Path
+) -> ComparisonReport:
     summaries = []
     for path in summary_paths:
         data = _load_summary(path)

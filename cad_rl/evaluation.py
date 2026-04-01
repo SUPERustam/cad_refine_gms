@@ -26,7 +26,11 @@ def export_evaluation_contract(config: RunConfig) -> dict:
 
 
 def evaluate_mesh_records(
-    records: list[dict], output_path: str | Path, *, split: str = "val", suite: str = "standard"
+    records: list[dict],
+    output_path: str | Path,
+    *,
+    split: str = "val",
+    suite: str = "standard",
 ) -> dict:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -63,7 +67,9 @@ def evaluate_mesh_records(
                 suite=suite,
                 split=split,
                 metric_name="iou",
-                value=float(metric["iou"]) if metric.get("iou") is not None else float("nan"),
+                value=float(metric["iou"])
+                if metric.get("iou") is not None
+                else float("nan"),
                 sample_count=1,
                 invalid_count=0 if status == "ok" else 1,
                 failure_count=0 if record.status == "ok" else 1,
@@ -102,7 +108,9 @@ def evaluate_mesh_records(
 
 def evaluate_from_resolved(config: RunConfig) -> dict:
     if config.eval.input_path is None or config.eval.output_path is None:
-        raise ValueError("Evaluation stage requires eval.input_path and eval.output_path")
+        raise ValueError(
+            "Evaluation stage requires eval.input_path and eval.output_path"
+        )
     records = load_jsonl(config.eval.input_path)
     return evaluate_mesh_records(
         records,

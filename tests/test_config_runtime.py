@@ -61,7 +61,10 @@ def test_stage_resolution_merges_common_and_stage_configs() -> None:
     assert resolved.common_config_path.endswith("configs/demo/common.yaml")
     assert resolved.config_path.endswith("configs/demo/train.yaml")
     assert resolved.task.task_id == "cadquery_v1"
-    assert resolved.data.prepared_datasets["train"] == "datasets/rendered_cadevolve_normalized_1_1_fixed"
+    assert (
+        resolved.data.prepared_datasets["train"]
+        == "datasets/rendered_cadevolve_normalized_1_1_fixed"
+    )
     assert resolved.model.base_checkpoint == "Qwen/Qwen2-VL-2B-Instruct"
     assert resolved.train.scheduler_policy == "constant"
     assert resolved.train.num_generations == 16
@@ -153,7 +156,10 @@ def test_dataclasses_round_trip_and_serialization() -> None:
     assert MeshRecord.from_mapping(to_serializable(mesh)) == mesh
     assert EvalRecord.from_mapping(to_serializable(eval_record)) == eval_record
     assert ComparisonReport.from_mapping(to_serializable(comparison)) == comparison
-    assert json.loads(json.dumps(to_serializable(manifest)))["latest_checkpoint"] == checkpoint.path
+    assert (
+        json.loads(json.dumps(to_serializable(manifest)))["latest_checkpoint"]
+        == checkpoint.path
+    )
 
 
 def test_run_registry_materializes_and_selects_checkpoints(tmp_path: Path) -> None:
@@ -208,18 +214,18 @@ def test_materialize_run_writes_json_files(tmp_path: Path) -> None:
     assert resolved_payload["system"]["profile_id"] == "local"
 
 
-def test_public_clis_support_dry_run_without_heavy_dependencies() -> None:
+def test_public_cli_subcommands_support_dry_run_without_heavy_dependencies() -> None:
     commands = [
-        ("prepare_dataset.py", "configs/demo/prepare_dataset.yaml"),
-        ("train.py", "configs/demo/train.yaml"),
-        ("resume_train.py", "configs/demo/train.yaml"),
-        ("infer.py", "configs/demo/infer.yaml"),
-        ("build_meshes.py", "configs/demo/build_meshes.yaml"),
-        ("evaluate.py", "configs/demo/evaluate.yaml"),
-        ("compare_runs.py", "configs/demo/compare.yaml"),
+        ("prepare-dataset", "configs/demo/prepare_dataset.yaml"),
+        ("train", "configs/demo/train.yaml"),
+        ("resume-train", "configs/demo/train.yaml"),
+        ("infer", "configs/demo/infer.yaml"),
+        ("build-meshes", "configs/demo/build_meshes.yaml"),
+        ("evaluate", "configs/demo/evaluate.yaml"),
+        ("compare-runs", "configs/demo/compare.yaml"),
     ]
-    for script, config in commands:
-        proc = _run_cli(script, "--config", config, "--dry-run")
+    for command, config in commands:
+        proc = _run_cli("cli.py", command, "--config", config, "--dry-run")
         assert proc.returncode == 0, proc.stderr
         payload = json.loads(proc.stdout)
         assert payload["config_path"].endswith(config)

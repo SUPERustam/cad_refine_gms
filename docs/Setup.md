@@ -42,7 +42,7 @@ Experiment directories compose one shared file plus stage overlays:
 To inspect the fully resolved training contract:
 
 ```bash
-python train.py --config configs/demo/train.yaml --dry-run
+python cli.py train --config configs/demo/train.yaml --dry-run
 ```
 
 ## Dataset preparation
@@ -56,24 +56,28 @@ datasets/rendered_cadevolve_normalized_1_1_fixed
 Create a prepared dataset from the stage config:
 
 ```bash
-python prepare_dataset.py --config configs/demo/prepare_dataset.yaml
+python cli.py prepare-dataset --config configs/demo/prepare_dataset.yaml
 ```
 
 The script writes a serialized HF dataset plus `manifest.json` into the configured output directory. Dataset source values come from the resolved `prepare` and `data` sections.
 
-Dataset preparation is the only part of the repo that depends on the STL visualization helper path under `cad_rl.data`. If your environment does not provide `vis_for_norm_parts`, `prepare_dataset.py` now fails with a targeted error explaining that the dependency is optional and dataset-prep-specific.
+Dataset preparation is the only part of the repo that depends on the STL visualization helper path under `cad_rl.data`. If your environment does not provide `vis_for_norm_parts`, `cli.py prepare-dataset` now fails with a targeted error explaining that the dependency is optional and dataset-prep-specific.
 
 ## Repo boundary
 
-The supported root Python files are intentionally limited to:
+The supported root Python interface is intentionally limited to:
 
-- `prepare_dataset.py`
-- `train.py`
-- `resume_train.py`
-- `infer.py`
-- `build_meshes.py`
-- `evaluate.py`
-- `compare_runs.py`
+- `cli.py`
+
+Supported workflow subcommands:
+
+- `prepare-dataset`
+- `train`
+- `resume-train`
+- `infer`
+- `build-meshes`
+- `evaluate`
+- `compare-runs`
 
 Reusable imports should come from `cad_rl/...`, not from root-level modules or the current working directory.
 
@@ -82,13 +86,13 @@ Reusable imports should come from `cad_rl/...`, not from root-level modules or t
 Start a run:
 
 ```bash
-python train.py --config configs/demo/train.yaml
+python cli.py train --config configs/demo/train.yaml
 ```
 
 Resume from the registry-managed checkpoint set:
 
 ```bash
-python resume_train.py \
+python cli.py resume-train \
   --config configs/demo/train.yaml \
   --checkpoint latest
 ```

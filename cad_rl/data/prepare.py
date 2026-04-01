@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 from pathlib import Path
 from typing import Any
@@ -62,10 +61,9 @@ def export_prepare_contract(config: RunConfig) -> dict:
     return to_serializable(config)
 
 
-def prepare_dataset_from_config(config_path: str | Path, *, system: str | Path | None = None):
+def prepare_dataset_from_resolved(config: RunConfig):
     from datasets import Dataset, Features, Image as HFImage, Value
 
-    config = resolve_prepare_config(config_path, system=system)
     processor = create_processor_from_spec(config.model)
     split = config.prepare.split
     raw_root = config.prepare.raw_root or config.data.raw_dataset_root
@@ -74,9 +72,13 @@ def prepare_dataset_from_config(config_path: str | Path, *, system: str | Path |
         config.prepare.output_path or config.data.prepared_datasets.get(split, "")
     )
     if not raw_root:
-        raise ValueError("Dataset preparation requires runtime.raw_root or task.raw_dataset_root")
+        raise ValueError(
+            "Dataset preparation requires runtime.raw_root or task.raw_dataset_root"
+        )
     if not output_dir:
-        raise ValueError("Dataset preparation requires runtime.output_path or task.prepared_datasets[split]")
+        raise ValueError(
+            "Dataset preparation requires runtime.output_path or task.prepared_datasets[split]"
+        )
     output_dir.parent.mkdir(parents=True, exist_ok=True)
 
     source = STLImageToCode(
@@ -121,19 +123,8 @@ def prepare_dataset_from_config(config_path: str | Path, *, system: str | Path |
     return {"config": config, "manifest": manifest, "output_dir": output_dir}
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Prepare a dataset from a stage config"
-    )
-    parser.add_argument("--config", required=True, help="Stage config path")
-    parser.add_argument("--system", help="Optional system overlay path")
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Only print the resolved contract"
-    )
-    args = parser.parse_args()
-
-    config = resolve_prepare_config(args.config, system=args.system)
-    if args.dry_run:
-        print(json.dumps(export_prepare_contract(config), indent=2))
-        return
-    prepare_dataset_from_config(args.config, system=args.system)
+def prepare_dataset_from_config(
+    config_path: str | Path, *, system: str | Path | None = None
+):
+    config = resolve_prepare_config(config_path, system=system)
+    return prepare_dataset_from_resolved(config)

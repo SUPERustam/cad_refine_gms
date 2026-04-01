@@ -68,7 +68,9 @@ def compute_iou(gt_mesh, pred_mesh):
         for gt_mesh_i in gt_mesh.split():
             for pred_mesh_i in pred_mesh.split():
                 intersection = gt_mesh_i.intersection(pred_mesh_i)
-                intersection_volume += intersection.volume if intersection is not None else 0
+                intersection_volume += (
+                    intersection.volume if intersection is not None else 0
+                )
         gt_volume = sum(m.volume for m in gt_mesh.split())
         pred_volume = sum(m.volume for m in pred_mesh.split())
         union_volume = gt_volume + pred_volume - intersection_volume
@@ -111,7 +113,9 @@ def transform_gt_mesh_cad_0875(mesh):
     extent = np.max(mesh.extents)
     if extent > 1e-7:
         mesh.apply_scale(0.875 / extent)
-    mesh.apply_transform(trimesh_mod.transformations.translation_matrix([0.5, 0.5, 0.5]))
+    mesh.apply_transform(
+        trimesh_mod.transformations.translation_matrix([0.5, 0.5, 0.5])
+    )
     return mesh
 
 

@@ -1,0 +1,13 @@
+profile_id: local
+run_root: ./runs
+cache_dir: ./.cache/cad_rl
+checkpoints_root: checkpoints
+artifact_root: artifacts
+logs_root: logs
+vllm_port: 8001
+world_size: 1
+cpu_workers: 4
+vllm_placement_policy: local
+comet_enabled: false
+environment:
+  TOKENIZERS_PARALLELISM: "false"

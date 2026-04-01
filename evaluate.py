@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
 import argparse
+import json
 
-from cad_rl.metrics.async_metrics import close_pool, init_pool
-
-from cad_rl.pipelines.evaluation import evaluate_inference_records
-from cad_rl.pipelines.inference import load_jsonl
+from cad_rl.evaluation import (
+    evaluate_from_resolved,
+    export_evaluation_contract,
+    resolve_evaluation_config,
+)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input", required=True)
-    parser.add_argument("--output", required=True)
-    parser.add_argument("--var-name", default="result")
-    parser.add_argument("--pool-size", type=int, default=16)
+    parser = argparse.ArgumentParser(
+        description="Evaluate mesh records and write evaluation summaries"
+    )
+    parser.add_argument("--config", required=True, help="Stage config path")
+    parser.add_argument("--system", help="Optional system overlay path")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Only print the resolved contract"
+    )
     args = parser.parse_args()
 
-    init_pool(args.pool_size)
-    try:
-        records = load_jsonl(args.input)
-        evaluate_inference_records(records, args.output, var_name=args.var_name)
-    finally:
-        close_pool()
+    config = resolve_evaluation_config(args.config, system=args.system)
+    if args.dry_run:
+        print(json.dumps(export_evaluation_contract(config), indent=2))
+        return
+    evaluate_from_resolved(config)
 
 
 if __name__ == "__main__":

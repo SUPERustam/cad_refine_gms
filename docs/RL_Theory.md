@@ -1,6 +1,6 @@
 # Reinforcement Learning Theory
 
-This document explains the current RL design implemented in this repo. `PLANS.md` describes the architecture target; this page focuses on the behavior already present in the code and configs.
+This document explains the current RL design implemented in this repo. `docs/design_doc.md` describes the architecture target; this page focuses on the behavior already present in the code and configs.
 
 ## Overview
 
@@ -36,17 +36,17 @@ To improve training stability and focus on the most informative samples, the fro
 - These samples represent the "best" and "worst" performers relative to the group mean, providing the strongest gradient signal.
 
 ### 3. Reward function
-The reward is the optimization target for the RL loop. The current configs expose reward settings through `algorithm.reward_config`:
+The reward is the optimization target for the RL loop. The current configs expose reward settings through `train.reward_config`:
 - **Execution Check**: If the code fails to execute or doesn't produce a valid mesh, it receives a `failure_reward` (e.g., -10 or 0).
 - **Geometric Metrics**: If execution succeeds, we compute:
     - **IoU (Intersection over Union)**: Volumetric overlap between predicted and GT meshes.
     - **Chamfer Distance**: Point-cloud similarity.
     - **AOC-GMS**: Area Over the Curve of Global Multiview Similarity (surface normal alignment).
-- **Mode selection**: the shipped profiles cover constant-scheduler, cosine-scheduler, GMS-weighted, and AOC-GMS-weighted variants.
+- **Mode selection**: the shipped configs cover constant-scheduler, cosine-scheduler, GMS-weighted, and AOC-GMS-weighted variants.
 
 ## Distributed Execution and vLLM
 
-Generation is designed around vLLM-enabled training configs, with runtime and machine settings controlling ports and environment setup.
+Generation is designed around vLLM-enabled training configs, with runtime and system settings controlling ports and environment setup.
 
 ```mermaid
 sequenceDiagram
@@ -74,11 +74,15 @@ sequenceDiagram
 
 ## Current config variants
 
-The repo currently ships these experiment and algorithm variants:
+The repo now expresses variants through stage configs under `configs/<experiment>/`.
 
-- `experiment.dr_cppo_constant.yaml`
-- `experiment.dr_cppo_cosine.yaml`
-- `experiment.dr_cppo_gms.yaml`
-- `experiment.dr_cppo_aoc_gms.yaml`
+In the checked-in demo tree, the active examples are:
 
-These vary scheduler or reward weighting without changing the supported public script surface.
+- `configs/demo/common.yaml`
+- `configs/demo/train.yaml`
+- `configs/demo/infer.yaml`
+- `configs/demo/build_meshes.yaml`
+- `configs/demo/evaluate.yaml`
+- `configs/demo/compare.yaml`
+
+Scheduler and reward-weighting variants should be represented by editing or duplicating stage config files rather than reintroducing legacy `experiment.*` config names.

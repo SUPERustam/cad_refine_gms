@@ -2,28 +2,29 @@
 import argparse
 import json
 
-from cad_rl.pipelines.training import (
+from cad_rl.training import (
     export_training_contract,
-    load_resolved_and_grpo,
+    resolve_training_config,
     train_from_resolved_config,
 )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Train with a resolved CAD RL experiment profile"
+        description="Train from a stage config"
     )
-    parser.add_argument("--experiment", required=True, help="Experiment profile path")
+    parser.add_argument("--config", required=True, help="Stage config path")
+    parser.add_argument("--system", help="Optional system overlay path")
     parser.add_argument(
         "--dry-run", action="store_true", help="Only print the resolved contract"
     )
     args = parser.parse_args()
 
-    resolved, grpo_args = load_resolved_and_grpo(args.experiment)
+    resolved = resolve_training_config(args.config, system=args.system)
     if args.dry_run:
         print(json.dumps(export_training_contract(resolved), indent=2))
         return
-    train_from_resolved_config(resolved, grpo_args)
+    train_from_resolved_config(resolved)
 
 
 if __name__ == "__main__":

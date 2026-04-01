@@ -1,5 +1,0 @@
-{
-  "extends": "experiment.dr_cppo_constant.yaml",
-  "profile_id": "dr_cppo_cosine",
-  "algorithm": "algorithm.dr_cppo_cosine.yaml"
-}

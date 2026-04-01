@@ -4,23 +4,23 @@
 
 If resume fails with a checkpoint lookup error, verify:
 
-- the run directory exists under the machine profile `run_root`
+- the run directory exists under the configured `system.run_root`
 - `checkpoints/index.jsonl` exists for that run, or `checkpoints/latest.txt` points at a real checkpoint
 - the `--checkpoint` value is one of `latest`, `best`, a recorded step, or an explicit path
 
-Use `python train.py --experiment ... --dry-run` to confirm you are resolving the expected machine profile and run root.
+Use `python train.py --config configs/demo/train.yaml --dry-run` to confirm you are resolving the expected system config and run root.
 
 ## Prepared dataset path or split is missing
 
-Training and inference load datasets from `task.prepared_datasets`.
+Training and inference load datasets from `data.prepared_datasets`.
 
 Check:
 
-- the resolved task profile contains the split you requested, for example `train` or `val`
+- the resolved task config contains the split you requested, for example `train` or `val`
 - the on-disk dataset path exists
 - the dataset was written with `prepare_dataset.py`
 
-`infer.py --split val` will fail if the task profile has no `val` dataset entry.
+Inference will fail if `infer.split` points at a split that is missing from `data.prepared_datasets`.
 
 ## `prepare_dataset.py` fails with a `vis_for_norm_parts` message
 
@@ -36,11 +36,11 @@ If you see an error mentioning `vis_for_norm_parts`:
 
 If generation fails around connection or startup:
 
-- compare `trainer.vllm_server_port` with the machine profile `vllm_port`
-- verify any required environment variables from `machine.environment`
+- compare `train.vllm_server_port` with the resolved system config `vllm_port`
+- verify any required environment variables from `system.environment`
 - inspect the resolved contract with `--dry-run` before launching the run
 
-The supported interface is profile-driven; do not rely on deleted shell wrappers or legacy launch scripts.
+The supported interface is stage-config driven; do not rely on deleted shell wrappers or legacy launch scripts.
 
 ## CadQuery output variable mismatch
 
@@ -48,11 +48,9 @@ If generated code executes but mesh building or evaluation reports invalid code,
 
 The current interfaces use:
 
-- `task.output_var_name` in the task profile
-- `--var-name` in `build_meshes.py`
-- `--var-name` in `evaluate.py`
+- `task.output_var_name` in the resolved config
 
-These must agree with the variable assigned by the generated CadQuery program. The default task profile uses `result`.
+Mesh building and evaluation read that value from the resolved config. It must agree with the variable assigned by the generated CadQuery program. The default demo config uses `result`.
 
 ## Import errors after local refactors
 
@@ -64,9 +62,9 @@ If local code still imports names like `metrics_async`, `grpo_trainer`, `grpo_lo
 
 If training runs out of memory or becomes unstable:
 
-- reduce `trainer.per_device_train_batch_size`
-- reduce `trainer.max_completion_length`
-- reduce `trainer.num_generations` or `trainer.generation_batch_size`
+- reduce `train.per_device_train_batch_size`
+- reduce `train.max_completion_length`
+- reduce `train.num_generations` or `train.generation_batch_size`
 - keep `gradient_checkpointing` enabled unless you have a reason to disable it
 - verify there is enough free disk space under the run root and cache directories
 
@@ -77,15 +75,15 @@ Common causes:
 - dataset rows point at bad mesh paths
 - nearly all generations fail execution and only receive `failure_reward`
 - the checkpoint is too weak for the current task
-- reward coefficients do not match the intended profile variant
+- reward coefficients do not match the intended config variant
 
 Inspect the generated inference JSONL and evaluation outputs before changing training code.
 
 ## Evaluation output looks incomplete
 
-`evaluate.py` writes two files:
+`evaluate.py` writes two files based on the resolved `eval.output_path`:
 
-- the per-sample rows at the path passed to `--output`
+- the per-sample rows at the configured output path
 - the aggregate summary at the same path with suffix `.summary.json`
 
-`compare_runs.py` expects summary JSON files, not the raw per-sample JSONL.
+`compare_runs.py` reads the summary JSON paths configured in `compare.summaries`, not the raw per-sample JSONL.

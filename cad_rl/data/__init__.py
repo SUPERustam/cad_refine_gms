@@ -1,24 +1,19 @@
-from .hf_dataset import (
+from cad_rl.data.datasets import (
     PreparedDatasetFingerprint,
     PreparedDatasetManifest,
+    RawSTLInferenceDataset,
+    STLImageToCode,
     fingerprint_prepared_dataset,
+    load_inference_dataset,
     load_prepared_hf_dataset,
 )
-from .inference_dataset import RawSTLInferenceDataset, load_inference_dataset
-
-
-def prepare_dataset_main() -> None:
-    from .prepare_dataset import main
-
-    main()
-
 
 __all__ = [
     "PreparedDatasetFingerprint",
     "PreparedDatasetManifest",
-    "fingerprint_prepared_dataset",
-    "load_prepared_hf_dataset",
     "RawSTLInferenceDataset",
+    "STLImageToCode",
+    "fingerprint_prepared_dataset",
     "load_inference_dataset",
-    "prepare_dataset_main",
+    "load_prepared_hf_dataset",
 ]

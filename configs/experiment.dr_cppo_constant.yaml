@@ -1,8 +1,0 @@
-{
-  "profile_id": "dr_cppo_constant",
-  "task": "task.cadquery_v1.yaml",
-  "model": "model.qwen2_vl.yaml",
-  "algorithm": "algorithm.dr_cppo_constant.yaml",
-  "machine": "machine.local.yaml",
-  "trainer": "trainer.grpo_default.yaml"
-}

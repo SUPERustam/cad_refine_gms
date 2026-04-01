@@ -39,10 +39,14 @@ If there is only one implementation today, keep one implementation today. Add a 
 ```text
 cad_refine_gms/
 ├── configs/
-│   ├── runs/
-│   │   ├── demo.yaml
-│   │   ├── dr_cppo_gms.yaml
-│   │   └── dr_cppo_aoc_gms.yaml
+│   ├── demo/
+│   │   ├── common.yaml
+│   │   ├── prepare_dataset.yaml
+│   │   ├── train.yaml
+│   │   ├── infer.yaml
+│   │   ├── build_meshes.yaml
+│   │   ├── evaluate.yaml
+│   │   └── compare.yaml
 │   └── systems/
 │       └── local.yaml
 ├── cad_rl/
@@ -96,15 +100,28 @@ Keep the runtime contract small:
 - `RunConfig`
 - `SystemConfig`
 
+The active config tree should use one experiment directory with a shared base plus stage overlays:
+
+- `configs/<experiment>/common.yaml`
+- `configs/<experiment>/prepare_dataset.yaml`
+- `configs/<experiment>/train.yaml`
+- `configs/<experiment>/infer.yaml`
+- `configs/<experiment>/build_meshes.yaml`
+- `configs/<experiment>/evaluate.yaml`
+- `configs/<experiment>/compare.yaml`
+- optional `configs/systems/*.yaml`
+
 `RunConfig` should contain grouped sections only:
 
 - `task`
 - `data`
 - `model`
+- `prepare`
 - `train`
 - `infer`
 - `mesh`
 - `eval`
+- `compare`
 - `runtime`
 
 Do not keep separate component-profile files for task, model, algorithm, trainer, and machine.
@@ -329,7 +346,7 @@ Those belong in config unless they are truly one-off debug overrides.
 
 Implement the new shape as a breaking cleanup:
 
-- replace flat legacy config files with `configs/runs/*.yaml`
+- replace flat legacy config files with `configs/<experiment>/common.yaml` plus stage YAMLs
 - allow an optional overlay from `configs/systems/*.yaml`
 - move CadQuery execution out of metric code
 - delete `cad_rl.specs`

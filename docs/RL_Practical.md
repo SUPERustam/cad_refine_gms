@@ -7,24 +7,24 @@ This repo exposes a clean Python script surface. Training, resume, and downstrea
 Follow [Setup](Setup.md) first:
 
 - prepare the HF dataset on disk
-- confirm the `task`, `model`, `algorithm`, `trainer`, and `machine` profiles you want
+- confirm the resolved stage config you want
 - inspect the resolved contract with `--dry-run` before launching long jobs
 
 ## Training
 
-Launch a run from an experiment profile:
+Launch a run from a stage config:
 
 ```bash
-python train.py --experiment configs/experiment.demo.yaml
+python train.py --config configs/demo/train.yaml
 ```
 
 Inspect the resolved contract without starting training:
 
 ```bash
-python train.py --experiment configs/experiment.demo.yaml --dry-run
+python train.py --config configs/demo/train.yaml --dry-run
 ```
 
-The training pipeline resolves the profile, fingerprints the prepared training dataset when possible, creates a run directory under the machine profile `run_root`, and writes:
+The training pipeline resolves the stage config, fingerprints the prepared training dataset when possible, creates a run directory under the configured `system.run_root`, and writes:
 
 - `resolved_config.json`
 - `manifest.json`
@@ -40,7 +40,7 @@ Resume uses the filesystem run registry instead of shell logic:
 
 ```bash
 python resume_train.py \
-  --experiment configs/experiment.demo.yaml \
+  --config configs/demo/train.yaml \
   --checkpoint latest
 ```
 
@@ -55,51 +55,38 @@ Supported checkpoint references:
 
 ## Important config fields
 
-The training contract comes from the resolved experiment profile. The current code paths depend most on:
+The training contract comes from the resolved stage config. The current code paths depend most on:
 
 | Field | Meaning |
 | :--- | :--- |
-| `task.prepared_datasets` | On-disk HF dataset paths by split |
+| `data.prepared_datasets` | On-disk HF dataset paths by split |
 | `task.output_var_name` | Expected CadQuery output variable |
 | `model.base_checkpoint` | Base or SFT checkpoint family |
 | `model.processor_kwargs` | Qwen processor settings |
-| `algorithm.reward_config` | Reward coefficients and failure behavior |
-| `algorithm.trainer_kwargs.top_samples` | Top-sample CPPO selection size |
-| `algorithm.scheduler_policy` | Current scheduler variant, for example `constant` or `cosine` |
-| `trainer.num_generations` | Number of completions per prompt |
-| `trainer.max_completion_length` | Completion token cap |
-| `machine.run_root` | Base directory for run artifacts |
-| `machine.environment` | Environment variables injected before trainer setup |
+| `train.reward_config` | Reward coefficients and failure behavior |
+| `train.trainer_kwargs.top_samples` | Top-sample CPPO selection size |
+| `train.scheduler_policy` | Current scheduler variant, for example `constant` or `cosine` |
+| `train.num_generations` | Number of completions per prompt |
+| `train.max_completion_length` | Completion token cap |
+| `system.run_root` | Base directory for run artifacts |
+| `system.environment` | Environment variables injected before trainer setup |
 
 ## Inference
 
-Inference currently loads a task profile and model profile directly:
+Inference is stage-config driven:
 
 ```bash
-python infer.py \
-  --task-profile configs/task.cadquery_v1.yaml \
-  --model-profile configs/model.qwen2_vl.yaml \
-  --checkpoint /path/to/checkpoint \
-  --split val \
-  --output outputs/inference.jsonl
+python infer.py --config configs/demo/infer.yaml
 ```
 
-Useful flags:
-
-- `--batch-size`
-- `--num-workers`
-
-The output is JSONL. Each row contains the task id, source mesh path, output variable name, raw model generation, wrapped code, timing, and execution placeholder metadata.
+The output is JSONL. Each row contains runtime inference records resolved from the stage config, including the sample id, checkpoint reference, raw generation, wrapped code, timing, and metadata.
 
 ## Mesh building
 
 Materialize meshes from inference JSONL:
 
 ```bash
-python build_meshes.py \
-  --input outputs/inference.jsonl \
-  --output-dir outputs/meshes \
-  --var-name result
+python build_meshes.py --config configs/demo/build_meshes.yaml
 ```
 
 The mesh pipeline writes:
@@ -107,23 +94,19 @@ The mesh pipeline writes:
 - `outputs/meshes/mesh_records.jsonl`
 - `outputs/meshes/meshes/sample_*.stl`
 
-Rows are marked `success` or `invalid_code`.
+Rows are marked `ok` or `invalid`.
 
 ## Evaluation
 
-Evaluate raw generations against the source mesh paths:
+Evaluate built mesh artifacts:
 
 ```bash
-python evaluate.py \
-  --input outputs/inference.jsonl \
-  --output outputs/eval.jsonl \
-  --var-name result \
-  --pool-size 16
+python evaluate.py --config configs/demo/evaluate.yaml
 ```
 
 The evaluation pipeline writes:
 
-- per-sample rows to the path passed to `--output`
+- per-sample rows to `eval.output_path`
 - an aggregate summary next to it at `*.summary.json`
 
 Current summary fields include:
@@ -136,12 +119,10 @@ Current summary fields include:
 
 ## Comparison
 
-Compare one or more summary files:
+Compare one or more summary files through the stage config:
 
 ```bash
-python compare_runs.py \
-  --summaries outputs/eval.summary.json other_run/eval.summary.json \
-  --output outputs/compare.json
+python compare_runs.py --config configs/demo/compare.yaml
 ```
 
 The report contains:

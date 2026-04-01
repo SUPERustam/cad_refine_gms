@@ -1,6 +1,6 @@
 # CAD RL
 
-Profile-driven CAD RL research repo with a filesystem run registry and a frozen Dr.CPPO/GRPO training core.
+Config-driven CAD RL research repo with a filesystem run registry and a flat stage-module layout under `cad_rl/`.
 
 ## Supported scripts
 
@@ -23,37 +23,42 @@ The repo now follows one boundary rule:
 
 Current internal layout:
 
-- `cad_rl/algorithms`: GRPO trainer, CPPO loss, reward wiring
-- `cad_rl/metrics`: async metric execution, mesh evaluation helpers, AOC-GMS
+- `cad_rl/training`, `cad_rl/inference`, `cad_rl/execution`, `cad_rl/evaluation`, `cad_rl/comparison`: stage ownership
+- `cad_rl/modeling`, `cad_rl/grpo`, `cad_rl/config`, `cad_rl/runtime`, `cad_rl/metrics`: shared runtime/model/training internals
 - `cad_rl/data`: prepared dataset helpers and dataset-prep rendering path
-- `cad_rl/config`, `cad_rl/runtime`, `cad_rl/pipelines`, `cad_rl/specs`, `cad_rl/models`: config resolution, run registry, workflows, schemas, and model adapters
 
 ## Config model
 
-Experiment profiles under `configs/` compose five main documents:
+The active workflow is stage-config based:
+
+- `configs/demo/common.yaml`
+- `configs/demo/prepare_dataset.yaml`
+- `configs/demo/train.yaml`
+- `configs/demo/infer.yaml`
+- `configs/demo/build_meshes.yaml`
+- `configs/demo/evaluate.yaml`
+- `configs/demo/compare.yaml`
+- optional `configs/systems/*.yaml`
+
+The resolved config is grouped by stage:
 
 - `task`
+- `data`
 - `model`
-- `algorithm`
-- `trainer`
-- `machine`
-
-`train.py` and `resume_train.py` resolve the experiment profile, materialize the resolved config into the run directory, and use that resolved contract as the source of truth for resume and downstream analysis.
-
-The config resolver supports `extends`, component references, and nested `overrides`. Current examples include:
-
-- `configs/experiment.demo.yaml`
-- `configs/experiment.dr_cppo_constant.yaml`
-- `configs/experiment.dr_cppo_cosine.yaml`
-- `configs/experiment.dr_cppo_gms.yaml`
-- `configs/experiment.dr_cppo_aoc_gms.yaml`
+- `prepare`
+- `train`
+- `infer`
+- `mesh`
+- `eval`
+- `compare`
+- `runtime`
 
 ## Quickstart
 
 Prepare a serialized Hugging Face dataset:
 
 ```bash
-python prepare_dataset.py --split train
+python prepare_dataset.py --config configs/demo/prepare_dataset.yaml --dry-run
 ```
 
 `prepare_dataset.py` is a thin wrapper over `cad_rl.data`. Its rendering path may require the optional `vis_for_norm_parts` dependency depending on your dataset-prep environment.
@@ -61,48 +66,35 @@ python prepare_dataset.py --split train
 Inspect the fully resolved training contract without launching training:
 
 ```bash
-python train.py --experiment configs/experiment.demo.yaml --dry-run
+python train.py --config configs/demo/train.yaml --dry-run
 ```
 
 Start a run:
 
 ```bash
-python train.py --experiment configs/experiment.demo.yaml
+python train.py --config configs/demo/train.yaml
 ```
 
 Resume from the filesystem checkpoint registry:
 
 ```bash
 python resume_train.py \
-  --experiment configs/experiment.demo.yaml \
+  --config configs/demo/train.yaml \
   --checkpoint latest
 ```
 
 Run the post-training workflow:
 
 ```bash
-python infer.py \
-  --task-profile configs/task.cadquery_v1.yaml \
-  --model-profile configs/model.qwen2_vl.yaml \
-  --checkpoint /path/to/checkpoint \
-  --output outputs/inference.jsonl
-
-python build_meshes.py \
-  --input outputs/inference.jsonl \
-  --output-dir outputs/meshes
-
-python evaluate.py \
-  --input outputs/inference.jsonl \
-  --output outputs/eval.jsonl
-
-python compare_runs.py \
-  --summaries outputs/eval.summary.json other_run/eval.summary.json \
-  --output outputs/compare.json
+python infer.py --config configs/demo/infer.yaml
+python build_meshes.py --config configs/demo/build_meshes.yaml
+python evaluate.py --config configs/demo/evaluate.yaml
+python compare_runs.py --config configs/demo/compare.yaml
 ```
 
 ## Run artifacts
 
-Training materializes a run directory under the machine profile `run_root`, for example `./runs/<run_id>/`, with:
+Training materializes a run directory under the configured `system.run_root`, for example `./runs/<run_id>/`, with:
 
 - `resolved_config.json`
 - `manifest.json`

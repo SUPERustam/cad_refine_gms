@@ -5,53 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from cad_rl.data import fingerprint_prepared_dataset, load_prepared_hf_dataset
-from cad_rl.data import PreparedDatasetFingerprint, PreparedDatasetManifest
-from cad_rl.specs.task import (
-    GenerationDefaults,
-    ModelSpec,
-    PromptRenderSpec,
-    TaskSpec,
-    default_task_spec,
+from cad_rl.config import to_serializable
+from cad_rl.data import (
+    PreparedDatasetFingerprint,
+    PreparedDatasetManifest,
+    fingerprint_prepared_dataset,
+    load_prepared_hf_dataset,
 )
-
-
-class _DummyProcessor:
-    def __init__(self) -> None:
-        self.tokenizer = object()
-
-    def apply_chat_template(self, message, tokenize=False, add_generation_prompt=True):
-        return json.dumps(
-            {
-                "message": message,
-                "tokenize": tokenize,
-                "add_generation_prompt": add_generation_prompt,
-            },
-            sort_keys=True,
-        )
-
-
-def test_task_spec_round_trip_and_prompt_render():
-    spec = default_task_spec()
-    payload = spec.to_dict()
-    restored = TaskSpec.from_dict(payload)
-    processor = _DummyProcessor()
-    prompt = restored.render_prompt(processor, image="img")
-
-    assert restored.task_id == spec.task_id
-    assert restored.output_var_name == "result"
-    assert '"type": "image"' in prompt
-    assert restored.default_eval_tiers == ("quick", "standard", "full")
-
-
-def test_model_spec_round_trip():
-    spec = ModelSpec(
-        generation_defaults=GenerationDefaults(max_new_tokens=123, temperature=0.5),
-        processor_render=PromptRenderSpec(resized_width=32, resized_height=64),
-    )
-    restored = ModelSpec.from_dict(spec.to_dict())
-    assert restored.generation_defaults.max_new_tokens == 123
-    assert restored.processor_render.resized_height == 64
+from cad_rl.comparison import compare_summaries
+from cad_rl.inference import load_jsonl
+from cad_rl.runtime import CheckpointRef, InferenceRecord, MeshRecord
 
 
 def test_prepared_dataset_fingerprint_and_loader(tmp_path: Path):
@@ -86,3 +49,49 @@ def test_prepared_dataset_fingerprint_and_loader(tmp_path: Path):
 
     assert restored_fp.dataset_path == str(root)
     assert restored_manifest.fingerprint.fingerprint == fp.fingerprint
+
+
+def test_jsonl_records_and_comparison_report(tmp_path: Path) -> None:
+    checkpoint = CheckpointRef(run_id="run-1", step=10, path="/tmp/checkpoint")
+    records_path = tmp_path / "inference.jsonl"
+    records_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    to_serializable(
+                        InferenceRecord(
+                            run_id="run-1",
+                            checkpoint=checkpoint,
+                            sample_id="sample-1",
+                            raw_generation="result = cq.Workplane()",
+                            metadata={"target_mesh_path": "/tmp/target.stl"},
+                        )
+                    )
+                ),
+                json.dumps(
+                    to_serializable(
+                        MeshRecord(
+                            run_id="run-1",
+                            checkpoint=checkpoint,
+                            sample_id="sample-1",
+                            mesh_path="/tmp/pred.stl",
+                            metadata={"target_mesh_path": "/tmp/target.stl"},
+                        )
+                    )
+                ),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    summary_a = tmp_path / "a.summary.json"
+    summary_b = tmp_path / "b.summary.json"
+    summary_a.write_text(json.dumps({"run_id": "run-a", "iou_mean": 0.8, "cd_mean": 0.1}), encoding="utf-8")
+    summary_b.write_text(json.dumps({"run_id": "run-b", "iou_mean": 0.9, "cd_mean": 0.2}), encoding="utf-8")
+
+    rows = load_jsonl(records_path)
+    report = compare_summaries([summary_a, summary_b], tmp_path / "report.json")
+
+    assert len(rows) == 2
+    assert rows[0]["sample_id"] == "sample-1"
+    assert report.run_ids == ("run-a", "run-b")
+    assert report.leaderboard[0]["run_id"] == "run-b"

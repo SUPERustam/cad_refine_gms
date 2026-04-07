@@ -1,17 +1,30 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from pathlib import Path
+
+try:  # pragma: no cover - optional inference dependency
+    import torch
+    from torch.utils.data import DataLoader
+except Exception:  # pragma: no cover - lightweight environments
+    torch = None
+    DataLoader = None
 
 try:
     from qwen_vl_utils import process_vision_info
 except Exception:  # pragma: no cover
     process_vision_info = None
 
-from cad_rl.config import RunConfig, TaskSpec, resolve_run_config, to_serializable
-from cad_rl.data import load_inference_dataset
-from cad_rl.runtime import CheckpointRef, InferenceRecord
+import cad_rl.config
+import cad_rl.data
+import cad_rl.modeling
+import cad_rl.runtime
+try:  # pragma: no cover - optional training dependency
+    import cad_rl.grpo
+except Exception:  # pragma: no cover - lightweight environments
+    cad_rl.grpo = None  # type: ignore[attr-defined]
 
 
 def _collate_for_qwen(batch, processor):
@@ -37,27 +50,26 @@ def _collate_for_qwen(batch, processor):
     return inputs
 
 
-def resolve_inference_config(
-    config_path: str | Path,
+def resolve_checkpoint_reference(
+    config: cad_rl.config.RunConfig,
     *,
-    system: str | Path | None = None,
-) -> RunConfig:
-    return resolve_run_config(
-        config_path, profiles_root=Path(config_path).parents[1], system=system
-    )
-
-
-def export_inference_contract(config: RunConfig) -> dict:
-    return to_serializable(config)
-
-
-def resolve_checkpoint_reference(config: RunConfig) -> CheckpointRef:
-    checkpoint_path = str(config.infer.checkpoint or config.model.base_checkpoint)
-    return CheckpointRef(
-        run_id=str(config.runtime.run_id or config.experiment_id),
-        step=None,
-        path=checkpoint_path,
-        kind=config.infer.checkpoint_kind,
+    registry: cad_rl.runtime.RunRegistry | None = None,
+) -> cad_rl.runtime.CheckpointRef:
+    run_id = str(config.runtime.run_id or config.experiment_id)
+    checkpoint_reference = config.infer.checkpoint
+    if checkpoint_reference is None:
+        if config.infer.checkpoint_kind in {"latest", "best"}:
+            checkpoint_reference = config.infer.checkpoint_kind
+        else:
+            return cad_rl.runtime.CheckpointRef(
+                run_id=run_id,
+                step=None,
+                path=str(config.model.base_checkpoint),
+                kind="specific",
+            )
+    active_registry = registry or cad_rl.runtime.RunRegistry(config.system.run_root)
+    return cad_rl.runtime.select_checkpoint(
+        run_id, active_registry, checkpoint_reference
     )
 
 
@@ -67,17 +79,16 @@ def generate_inference_records(
     dataset,
     output_path: str | Path,
     generation_config: dict,
-    task_spec: TaskSpec,
+    task_spec: cad_rl.config.TaskSpec,
     *,
     run_id: str,
-    checkpoint: CheckpointRef,
+    checkpoint: cad_rl.runtime.CheckpointRef,
 ) -> Path:
-    import torch
-    from torch.utils.data import DataLoader
-
-    from cad_rl.grpo import configure_process_environment
-
-    configure_process_environment()
+    if torch is None or DataLoader is None:
+        raise RuntimeError("torch is required for inference")
+    if cad_rl.grpo is None:
+        raise RuntimeError("cad_rl.grpo dependencies are not available")
+    cad_rl.grpo.configure_process_environment()
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     device = next(model.parameters()).device
@@ -112,7 +123,7 @@ def generate_inference_records(
                     trimmed, skip_special_tokens=True
                 )
                 for mesh_path, text in zip(batch["mesh_path"], texts):
-                    record = InferenceRecord(
+                    record = cad_rl.runtime.InferenceRecord(
                         run_id=run_id,
                         checkpoint=checkpoint,
                         sample_id=Path(mesh_path).stem,
@@ -126,36 +137,41 @@ def generate_inference_records(
                             "output_variable": var_name,
                         },
                     )
-                    handle.write(json.dumps(to_serializable(record)) + "\n")
+                    handle.write(
+                        json.dumps(cad_rl.config.to_serializable(record)) + "\n"
+                    )
     return output_path
 
 
-def run_inference_from_resolved(config: RunConfig) -> Path:
-    import torch
-
-    from cad_rl.modeling import (
-        build_generation_kwargs,
-        create_processor_from_spec,
-        load_model_from_spec,
-    )
-
+def run_inference_from_resolved(config: cad_rl.config.RunConfig) -> Path:
+    log_path = cad_rl.runtime.setup_run_logging(config, stage="infer")
+    logger = logging.getLogger(__name__)
+    if torch is None:
+        raise RuntimeError("torch is required for inference")
     checkpoint = resolve_checkpoint_reference(config)
-    processor = create_processor_from_spec(config.model)
-    model = load_model_from_spec(config.model, checkpoint.path).to(
+    logger.info("Logging to %s", log_path)
+    logger.info(
+        "Resolved checkpoint %s for run %s",
+        checkpoint.path,
+        checkpoint.run_id,
+    )
+    processor = cad_rl.modeling.create_processor_from_spec(config.model)
+    model = cad_rl.modeling.load_model_from_spec(config.model, checkpoint.path).to(
         "cuda" if torch.cuda.is_available() else "cpu"
     )
-    dataset = load_inference_dataset(
+    dataset = cad_rl.data.load_inference_dataset(
         {"hf_dataset": config.data.hf_dataset},
         config.data.prepared_datasets[config.infer.split],
         raw_recursive=config.infer.raw_recursive,
         max_samples=config.infer.max_samples,
     )
-    generate_kwargs = build_generation_kwargs(processor)
+    generate_kwargs = cad_rl.modeling.build_generation_kwargs(processor)
     generate_kwargs.update(dict(config.model.generation_defaults))
-    output_path = (
-        config.infer.output_path
-        or f"runs/{config.experiment_id}/infer/inference_records.jsonl"
+    run_id = str(config.runtime.run_id or config.experiment_id)
+    output_path = config.infer.output_path or str(
+        Path(config.system.run_root) / run_id / "infer" / "inference_records.jsonl"
     )
+    logger.info("Writing inference records to %s", output_path)
     return generate_inference_records(
         model=model,
         processor=processor,

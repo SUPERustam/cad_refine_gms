@@ -17,6 +17,11 @@ except Exception:  # pragma: no cover - lightweight test environments
 
 from cad_rl.data.render import Plotter1_1
 
+try:  # pragma: no cover - optional dependency
+    from datasets import load_from_disk
+except Exception:  # pragma: no cover - lightweight environments
+    load_from_disk = None
+
 
 def _iter_files(root: Path) -> Iterable[Path]:
     for path in sorted(root.rglob("*")):
@@ -93,8 +98,8 @@ def fingerprint_prepared_dataset(
     tree_hash, file_count, byte_size = _hash_path_tree(path)
     source_fingerprint = None
     try:
-        from datasets import load_from_disk
-
+        if load_from_disk is None:
+            raise RuntimeError
         loaded = load_from_disk(str(path))
         source_fingerprint = getattr(loaded, "_fingerprint", None)
     except Exception:
@@ -110,8 +115,8 @@ def fingerprint_prepared_dataset(
 
 
 def load_prepared_hf_dataset(dataset_path: str | Path, split: str | None = None) -> Any:
-    from datasets import load_from_disk
-
+    if load_from_disk is None:
+        raise RuntimeError("datasets is required to load prepared HF datasets")
     dataset = load_from_disk(str(dataset_path))
     if split is None:
         return dataset

@@ -40,15 +40,12 @@ If there is only one implementation today, keep one implementation today. Add a 
 cad_refine_gms/
 ├── configs/
 │   ├── demo/
-│   │   ├── common.yaml
 │   │   ├── prepare_dataset.yaml
 │   │   ├── train.yaml
 │   │   ├── infer.yaml
 │   │   ├── build_meshes.yaml
 │   │   ├── evaluate.yaml
 │   │   └── compare.yaml
-│   └── systems/
-│       └── local.yaml
 ├── cad_rl/
 │   ├── __init__.py
 │   ├── config.py
@@ -88,23 +85,23 @@ The goal is fewer layers, not bigger confusion. Keep only modules with distinct 
 
 ### `cad_rl.config`
 
-Owns config dataclasses, config loading, overlay merge, and serialization.
+Owns config dataclasses, config loading, validation, and serialization.
 
 Keep the runtime contract small:
 
 - `RunConfig`
 - `SystemConfig`
 
-The active config tree should use one experiment directory with a shared base plus stage overlays:
+The active config tree should use one self-contained stage file per command invocation:
 
-- `configs/<experiment>/common.yaml`
 - `configs/<experiment>/prepare_dataset.yaml`
 - `configs/<experiment>/train.yaml`
 - `configs/<experiment>/infer.yaml`
 - `configs/<experiment>/build_meshes.yaml`
 - `configs/<experiment>/evaluate.yaml`
 - `configs/<experiment>/compare.yaml`
-- optional `configs/systems/*.yaml`
+
+Do not rely on implicit `common.yaml` merges, `system_profile`, or a separate CLI `--system` overlay.
 
 `RunConfig` should contain grouped sections only:
 
@@ -123,7 +120,7 @@ Do not keep separate component-profile files for task, model, algorithm, trainer
 
 ### `cad_rl.runtime`
 
-Owns run directories, manifests, checkpoint selection, and record dataclasses.
+Owns run directories, manifests, checkpoint selection, run-scoped logging, and record dataclasses.
 
 Keep these runtime records:
 
@@ -133,6 +130,13 @@ Keep these runtime records:
 - `MeshRecord`
 - `EvalRecord`
 - `ComparisonReport`
+
+Keep runtime as the single source of truth for:
+
+- `resolved_config.json`
+- `manifest.json`
+- checkpoint index and `latest.txt`
+- `logs/<stage>.log`
 
 ### `cad_rl.modeling`
 
@@ -160,6 +164,8 @@ Owns train and resume orchestration:
 - build reward function
 - materialize run metadata
 - start training or resume from checkpoint
+
+Thin wrappers that only rename fields or forward dataclasses should be folded back into the stage entrypoints.
 
 ### `cad_rl.execution`
 
@@ -189,6 +195,7 @@ This module consumes meshes or execution outputs. It does not execute code.
 Owns inference only:
 
 - inference record generation
+- runtime-backed checkpoint resolution for symbolic names such as `latest` and `best`
 
 This module should orchestrate generation using `modeling`, `runtime`, and dataset loaders.
 
@@ -199,6 +206,8 @@ Owns mesh-stage evaluation only:
 - metric computation over built meshes
 - evaluation record generation
 - summary generation
+
+Summaries should carry explicit run and checkpoint identity so downstream comparison does not need to infer it from file paths.
 
 This module should orchestrate evaluation using `metrics` and `runtime`.
 
@@ -242,7 +251,6 @@ Input:
 
 - raw dataset source
 - run config
-- optional system config
 
 Output:
 
@@ -254,7 +262,6 @@ Output:
 Input:
 
 - run config
-- optional system config
 - prepared dataset reference
 
 Output:
@@ -269,7 +276,6 @@ Output:
 Input:
 
 - run config
-- optional system config
 - checkpoint reference
 - prepared dataset split or inference source
 
@@ -314,8 +320,8 @@ Output:
 Every public CLI subcommand should use the same shape:
 
 - `--config` required
-- `--system` optional
 - `--dry-run` optional
+- `--debug` optional
 
 Resume also keeps:
 
@@ -340,16 +346,3 @@ Those belong in config unless they are truly one-off debug overrides.
 - do not document future seams that do not exist yet
 - keep stage boundaries explicit
 - keep failure records structured instead of silently dropping bad samples
-
-## Cutover Plan
-
-Implement the new shape as a breaking cleanup:
-
-- replace flat legacy config files with `configs/<experiment>/common.yaml` plus stage YAMLs
-- allow an optional overlay from `configs/systems/*.yaml`
-- move CadQuery execution out of metric code
-- delete `cad_rl.specs`
-- fold tiny helper packages into single modules
-- keep only the root CLIs and the simplified `cad_rl/` layout
-
-The end state should be simpler to read than the current tree without hiding behavior inside oversized utility files.

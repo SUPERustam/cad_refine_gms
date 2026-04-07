@@ -10,6 +10,11 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover - optional dependency
     trimesh = None
 
+try:  # pragma: no cover - optional dependency
+    from scipy.spatial import cKDTree
+except Exception:  # pragma: no cover - optional dependency
+    cKDTree = None
+
 
 def _require_trimesh():
     if trimesh is None:  # pragma: no cover - import guard
@@ -19,7 +24,8 @@ def _require_trimesh():
 
 def compute_normals_metrics(gt_mesh, pred_mesh, tol=1, n_points=8192, visualize=False):
     trimesh_mod = _require_trimesh()
-    from scipy.spatial import cKDTree
+    if cKDTree is None:
+        raise RuntimeError("scipy is required for normals metrics")
 
     tol = pred_mesh.extents.max() * tol / 100
     gt_points, gt_face_indexes = trimesh_mod.sample.sample_surface(gt_mesh, n_points)
@@ -83,7 +89,8 @@ def compute_iou(gt_mesh, pred_mesh):
 
 def compute_cd(pred_mesh, gt_mesh, n_points=8192):
     trimesh_mod = _require_trimesh()
-    from scipy.spatial import cKDTree
+    if cKDTree is None:
+        raise RuntimeError("scipy is required for Chamfer distance")
 
     gt_points, _ = trimesh_mod.sample.sample_surface(gt_mesh, n_points)
     pred_points, _ = trimesh_mod.sample.sample_surface(pred_mesh, n_points)

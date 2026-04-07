@@ -1,1 +1,132 @@
+profile_id: demo_cad_rl
+experiment_id: demo
 stage: evaluate
+
+task:
+  task_id: cadquery_v1
+  output_var_name: result
+  default_eval_suites: [quick, standard, full]
+
+data:
+  prepared_datasets:
+    train: datasets/rendered_cadevolve_normalized_1_1_fixed
+    val: datasets/rendered_cadevolve_normalized_1_1_fixed
+  prompt_profile_id: qwen_vl_chat
+  render_profile_id: cadquery_default
+  normalization_mode: fixed
+  prompt_convention: multimodal_chat
+  render_convention: cadquery_compound
+  hf_dataset: true
+
+model:
+  base_checkpoint: Qwen/Qwen2-VL-2B-Instruct
+  trust_remote_code: true
+  torch_dtype: bfloat16
+  attn_implementation: flash_attention_2
+  sft_checkpoint: null
+  processor_name: Qwen/Qwen2-VL-2B-Instruct
+  processor_kwargs:
+    trust_remote_code: true
+    resized_width: 476
+    resized_height: 952
+    padding_side: left
+  generation_defaults:
+    do_sample: true
+    temperature: 0.7
+    top_p: 0.95
+    top_k: 50
+    max_new_tokens: 4200
+
+prepare:
+  split: train
+
+train:
+  loss_type: dr_grpo
+  importance_sampling_level: sequence
+  scheduler: constant
+  reward:
+    failure_reward: -10.0
+    iou_coef: 10.0
+    cd_coef: 0.0
+    auc_coef: 0.0
+    aoc_gms_coef: 0.0
+    get_nc: false
+    nc_n_points: 16384
+    nc_tol: 5
+    print_sample_steps: 25
+    pool_size: 16
+    r_mode: 10_iou
+    get_aoc_gms: false
+    aoc_gms_n_points: 8192
+    aoc_gms_n_angles: 125
+    aoc_gms_rel_tol: 0.05
+    aoc_gms_cube_trick: true
+    aoc_gms_pc_cache_enable: false
+    aoc_gms_upper_bound_tol_rt: 25
+    aoc_gms_autofix_sampling: false
+  clip_cov: false
+  top_samples: 4
+  use_vllm: true
+  vllm_server_port: 8000
+  bf16: true
+  gradient_checkpointing: true
+  remove_unused_columns: false
+  ddp_find_unused_parameters: false
+  beta: 0
+  weight_decay: 0
+  output_dir: models/test_cadrecodev2
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 1
+  max_completion_length: 3000
+  log_completions: false
+  logging_steps: 5
+  num_generations: 16
+  generation_batch_size: 64
+  report_to: [comet_ml]
+  run_name: grpo_cadrecodev2_0
+  num_train_epochs: 20
+  save_strategy: steps
+  save_steps: 150
+  save_total_limit: null
+  temperature: 1.0
+  top_p: 0.99
+  top_k: 50
+  epsilon: 0.1
+  num_iterations: 3
+  scale_rewards: false
+  learning_rate: 3e-5
+
+infer:
+  split: val
+  output_path: runs/demo/infer/inference_records.jsonl
+  checkpoint_kind: specific
+  batch_size: 8
+  num_workers: 0
+
+mesh:
+  input_path: runs/demo/infer/inference_records.jsonl
+  output_dir: runs/demo/build_meshes
+
+eval:
+  input_path: runs/demo/build_meshes/mesh_records.jsonl
+  output_path: runs/demo/evaluate/eval_records.jsonl
+  split: val
+  suite: standard
+
+compare:
+  summaries:
+    - runs/demo/evaluate/eval_records.summary.json
+  output_path: runs/demo/compare/report.json
+
+runtime:
+  seed: 16
+  dataset_split: val
+  debug: false
+  run_id: demo_evaluate
+  resume_path: ""
+  scheduler_training_steps: 200000
+
+system:
+  profile_id: local
+  run_root: runs
+  cache_dir: null

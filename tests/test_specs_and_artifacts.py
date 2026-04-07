@@ -86,11 +86,27 @@ def test_jsonl_records_and_comparison_report(tmp_path: Path) -> None:
     summary_a = tmp_path / "a.summary.json"
     summary_b = tmp_path / "b.summary.json"
     summary_a.write_text(
-        json.dumps({"run_id": "run-a", "iou_mean": 0.8, "cd_mean": 0.1}),
+        json.dumps(
+            {
+                "run_id": "run-a",
+                "checkpoint_path": "/tmp/run-a/checkpoint",
+                "checkpoint_step": 10,
+                "iou_mean": 0.8,
+                "cd_mean": 0.1,
+            }
+        ),
         encoding="utf-8",
     )
     summary_b.write_text(
-        json.dumps({"run_id": "run-b", "iou_mean": 0.9, "cd_mean": 0.2}),
+        json.dumps(
+            {
+                "run_id": "run-b",
+                "checkpoint_path": "/tmp/run-b/checkpoint",
+                "checkpoint_step": 20,
+                "iou_mean": 0.9,
+                "cd_mean": 0.2,
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -100,4 +116,5 @@ def test_jsonl_records_and_comparison_report(tmp_path: Path) -> None:
     assert len(rows) == 2
     assert rows[0]["sample_id"] == "sample-1"
     assert report.run_ids == ("run-a", "run-b")
+    assert report.checkpoint_refs[0].path == "/tmp/run-a/checkpoint"
     assert report.leaderboard[0]["run_id"] == "run-b"

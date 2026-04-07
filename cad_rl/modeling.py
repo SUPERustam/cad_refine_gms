@@ -2,6 +2,17 @@ from __future__ import annotations
 
 from typing import Any
 
+try:  # pragma: no cover - optional model dependency
+    import torch
+except Exception:  # pragma: no cover - lightweight environments
+    torch = None
+
+try:  # pragma: no cover - optional model dependency
+    from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
+except Exception:  # pragma: no cover - lightweight environments
+    AutoProcessor = None
+    Qwen2VLForConditionalGeneration = None
+
 from cad_rl.config import ModelSpec
 
 
@@ -9,8 +20,8 @@ DEFAULT_MODEL_ID = "Qwen/Qwen2-VL-2B-Instruct"
 
 
 def resolve_torch_dtype(dtype_name: str) -> torch.dtype:
-    import torch
-
+    if torch is None:
+        raise RuntimeError("torch is required to resolve model dtype")
     aliases = {
         "bfloat16": torch.bfloat16,
         "float16": torch.float16,
@@ -22,8 +33,8 @@ def resolve_torch_dtype(dtype_name: str) -> torch.dtype:
 
 
 def create_processor(model_id: str = DEFAULT_MODEL_ID, **processor_kwargs):
-    from transformers import AutoProcessor
-
+    if AutoProcessor is None:
+        raise RuntimeError("transformers is required to create the processor")
     kwargs = {
         "trust_remote_code": True,
         "resized_width": 14 * 17 * 2,
@@ -40,9 +51,8 @@ def create_processor_from_spec(spec: ModelSpec):
 
 
 def load_qwen_model(model_path: str, **model_kwargs):
-    import torch
-    from transformers import Qwen2VLForConditionalGeneration
-
+    if torch is None or Qwen2VLForConditionalGeneration is None:
+        raise RuntimeError("torch and transformers are required to load the model")
     kwargs = {
         "torch_dtype": torch.bfloat16,
         "attn_implementation": "flash_attention_2",

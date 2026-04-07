@@ -1,15 +1,10 @@
 from __future__ import annotations
 
 import json
-from copy import deepcopy
 from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence
-
-try:  # pragma: no cover - optional dependency
-    import yaml  # type: ignore
-except Exception:  # pragma: no cover - optional dependency
-    yaml = None
+import yaml
 
 
 def _tuple(value: Any) -> tuple[Any, ...]:
@@ -30,6 +25,34 @@ def _dict(value: Any) -> dict[str, Any]:
     if isinstance(value, Mapping):
         return dict(value.items())
     raise TypeError(f"Expected mapping, got {type(value)!r}")
+
+
+class ConfigError(ValueError):
+    pass
+
+
+def _strict_section(
+    section_name: str,
+    value: Mapping[str, Any] | None,
+    *,
+    required: Sequence[str] = (),
+    optional: Sequence[str] = (),
+) -> dict[str, Any]:
+    if value is None:
+        raise ConfigError(f"Missing required section {section_name!r}")
+    payload = _dict(value)
+    allowed = set(required) | set(optional)
+    unknown = sorted(set(payload) - allowed)
+    if unknown:
+        raise ConfigError(
+            f"Unknown keys in section {section_name!r}: {', '.join(unknown)}"
+        )
+    missing = [key for key in required if key not in payload]
+    if missing:
+        raise ConfigError(
+            f"Missing required keys in section {section_name!r}: {', '.join(missing)}"
+        )
+    return payload
 
 
 def to_serializable(value: Any) -> Any:
@@ -56,14 +79,12 @@ class TaskSpec:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> "TaskSpec":
-        payload = _dict(data)
-        aliases = {
-            "output_variable_name": "output_var_name",
-            "var_name": "output_var_name",
-        }
-        for alias, target in aliases.items():
-            if alias in payload and target not in payload:
-                payload[target] = payload.pop(alias)
+        payload = _strict_section(
+            "task",
+            data,
+            required=("task_id",),
+            optional=("output_var_name", "default_eval_suites"),
+        )
         return cls(
             task_id=str(payload["task_id"]),
             output_var_name=str(payload.get("output_var_name", "result")),
@@ -75,10 +96,10 @@ class TaskSpec:
 
 @dataclass(frozen=True, slots=True)
 class DataSpec:
-    prepared_datasets: Mapping[str, str] = field(default_factory=dict)
-    prompt_profile_id: str = "default_prompt"
-    render_profile_id: str = "default_render"
-    normalization_mode: str = "fixed"
+    prepared_datasets: Mapping[str, str]
+    prompt_profile_id: str
+    render_profile_id: str
+    normalization_mode: str
     prompt_convention: str | None = None
     render_convention: str | None = None
     hf_dataset: bool = True
@@ -87,22 +108,31 @@ class DataSpec:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> "DataSpec":
-        payload = _dict(data)
-        aliases = {
-            "prepared_dataset_splits": "prepared_datasets",
-            "prepared_hf_dataset_splits": "prepared_datasets",
-        }
-        for alias, target in aliases.items():
-            if alias in payload and target not in payload:
-                payload[target] = payload.pop(alias)
+        payload = _strict_section(
+            "data",
+            data,
+            required=(
+                "prepared_datasets",
+                "prompt_profile_id",
+                "render_profile_id",
+                "normalization_mode",
+            ),
+            optional=(
+                "prompt_convention",
+                "render_convention",
+                "hf_dataset",
+                "raw_dataset_root",
+                "raw_dataset_pickle",
+            ),
+        )
         return cls(
             prepared_datasets={
                 str(key): str(value)
                 for key, value in _dict(payload.get("prepared_datasets")).items()
             },
-            prompt_profile_id=str(payload.get("prompt_profile_id", "default_prompt")),
-            render_profile_id=str(payload.get("render_profile_id", "default_render")),
-            normalization_mode=str(payload.get("normalization_mode", "fixed")),
+            prompt_profile_id=str(payload["prompt_profile_id"]),
+            render_profile_id=str(payload["render_profile_id"]),
+            normalization_mode=str(payload["normalization_mode"]),
             prompt_convention=payload.get("prompt_convention"),
             render_convention=payload.get("render_convention"),
             hf_dataset=bool(payload.get("hf_dataset", True)),
@@ -117,7 +147,6 @@ class DataSpec:
 
 @dataclass(frozen=True, slots=True)
 class ModelSpec:
-    model_family_adapter_id: str
     base_checkpoint: str
     sft_checkpoint: str | None = None
     processor_name: str | None = None
@@ -129,9 +158,21 @@ class ModelSpec:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> "ModelSpec":
-        payload = _dict(data)
+        payload = _strict_section(
+            "model",
+            data,
+            required=(
+                "base_checkpoint",
+                "sft_checkpoint",
+                "processor_name",
+                "processor_kwargs",
+                "generation_defaults",
+                "trust_remote_code",
+                "torch_dtype",
+                "attn_implementation",
+            ),
+        )
         return cls(
-            model_family_adapter_id=str(payload["model_family_adapter_id"]),
             base_checkpoint=str(payload["base_checkpoint"]),
             sft_checkpoint=None
             if payload.get("sft_checkpoint") is None
@@ -139,19 +180,17 @@ class ModelSpec:
             processor_name=None
             if payload.get("processor_name") is None
             else str(payload.get("processor_name")),
-            processor_kwargs=_dict(payload.get("processor_kwargs")),
-            generation_defaults=_dict(payload.get("generation_defaults")),
-            trust_remote_code=bool(payload.get("trust_remote_code", True)),
-            torch_dtype=str(payload.get("torch_dtype", "bfloat16")),
-            attn_implementation=str(
-                payload.get("attn_implementation", "flash_attention_2")
-            ),
+            processor_kwargs=_dict(payload["processor_kwargs"]),
+            generation_defaults=_dict(payload["generation_defaults"]),
+            trust_remote_code=bool(payload["trust_remote_code"]),
+            torch_dtype=str(payload["torch_dtype"]),
+            attn_implementation=str(payload["attn_implementation"]),
         )
 
 
 @dataclass(frozen=True, slots=True)
 class PrepareSpec:
-    split: str = "train"
+    split: str
     output_path: str | None = None
     raw_root: str | None = None
     pickle_file: str | None = None
@@ -160,9 +199,14 @@ class PrepareSpec:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> "PrepareSpec":
-        payload = _dict(data)
+        payload = _strict_section(
+            "prepare",
+            data,
+            required=("split",),
+            optional=("output_path", "raw_root", "pickle_file", "shuffle", "size"),
+        )
         return cls(
-            split=str(payload.get("split", "train")),
+            split=str(payload["split"]),
             output_path=None
             if payload.get("output_path") is None
             else str(payload.get("output_path")),
@@ -178,42 +222,116 @@ class PrepareSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class RewardSpec:
+    failure_reward: float = -10.0
+    iou_coef: float = 10.0
+    cd_coef: float = 0.0
+    auc_coef: float = 0.0
+    aoc_gms_coef: float = 0.0
+    get_nc: bool = False
+    nc_n_points: int = 16384
+    nc_tol: int = 5
+    print_sample_steps: int = 25
+    pool_size: int = 16
+    r_mode: str = "10_iou"
+    get_aoc_gms: bool = False
+    aoc_gms_n_points: int = 8192
+    aoc_gms_n_angles: int = 125
+    aoc_gms_rel_tol: float = 0.05
+    aoc_gms_cube_trick: bool = True
+    aoc_gms_pc_cache_enable: bool = False
+    aoc_gms_upper_bound_tol_rt: int = 25
+    aoc_gms_autofix_sampling: bool = False
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any] | None) -> "RewardSpec":
+        payload = _strict_section(
+            "train.reward",
+            data,
+            required=(
+                "failure_reward",
+                "iou_coef",
+                "cd_coef",
+                "auc_coef",
+                "aoc_gms_coef",
+                "r_mode",
+            ),
+            optional=(
+                "get_nc",
+                "nc_n_points",
+                "nc_tol",
+                "print_sample_steps",
+                "pool_size",
+                "get_aoc_gms",
+                "aoc_gms_n_points",
+                "aoc_gms_n_angles",
+                "aoc_gms_rel_tol",
+                "aoc_gms_cube_trick",
+                "aoc_gms_pc_cache_enable",
+                "aoc_gms_upper_bound_tol_rt",
+                "aoc_gms_autofix_sampling",
+            ),
+        )
+        return cls(
+            failure_reward=float(payload["failure_reward"]),
+            iou_coef=float(payload["iou_coef"]),
+            cd_coef=float(payload["cd_coef"]),
+            auc_coef=float(payload["auc_coef"]),
+            aoc_gms_coef=float(payload["aoc_gms_coef"]),
+            get_nc=bool(payload.get("get_nc", False)),
+            nc_n_points=int(payload.get("nc_n_points", 16384)),
+            nc_tol=int(payload.get("nc_tol", 5)),
+            print_sample_steps=int(payload.get("print_sample_steps", 25)),
+            pool_size=int(payload.get("pool_size", 16)),
+            r_mode=str(payload["r_mode"]),
+            get_aoc_gms=bool(payload.get("get_aoc_gms", False)),
+            aoc_gms_n_points=int(payload.get("aoc_gms_n_points", 8192)),
+            aoc_gms_n_angles=int(payload.get("aoc_gms_n_angles", 125)),
+            aoc_gms_rel_tol=float(payload.get("aoc_gms_rel_tol", 0.05)),
+            aoc_gms_cube_trick=bool(payload.get("aoc_gms_cube_trick", True)),
+            aoc_gms_pc_cache_enable=bool(payload.get("aoc_gms_pc_cache_enable", False)),
+            aoc_gms_upper_bound_tol_rt=int(
+                payload.get("aoc_gms_upper_bound_tol_rt", 25)
+            ),
+            aoc_gms_autofix_sampling=bool(
+                payload.get("aoc_gms_autofix_sampling", False)
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class TrainSpec:
-    trainer_type: str
-    loss_mode: str
-    importance_sampling_mode: str
-    top_k_policy: str
-    optimizer_policy: str
-    scheduler_policy: str
-    reward_config: Mapping[str, Any] = field(default_factory=dict)
-    trainer_kwargs: Mapping[str, Any] = field(default_factory=dict)
-    use_vllm: bool = True
-    vllm_server_port: int | None = 8000
-    bf16: bool = True
-    gradient_checkpointing: bool = True
-    remove_unused_columns: bool = False
-    ddp_find_unused_parameters: bool = False
-    beta: float = 0.0
-    weight_decay: float = 0.0
-    output_dir: str = "models/test_cadrecodev2"
-    per_device_train_batch_size: int = 4
-    gradient_accumulation_steps: int = 1
-    max_completion_length: int = 3000
-    log_completions: bool = False
-    logging_steps: int = 5
-    num_generations: int = 16
-    generation_batch_size: int = 64
-    report_to: tuple[str, ...] = ("comet_ml",)
-    run_name: str = "grpo_cadrecodev2_0"
-    num_train_epochs: int = 20
-    save_strategy: str = "steps"
-    save_steps: int = 150
+    loss_type: str
+    importance_sampling_level: str
+    scheduler: str
+    reward: RewardSpec
+    clip_cov: bool
+    top_samples: int
+    use_vllm: bool
+    vllm_server_port: int | None
+    bf16: bool
+    gradient_checkpointing: bool
+    remove_unused_columns: bool
+    ddp_find_unused_parameters: bool
+    beta: float
+    weight_decay: float
+    output_dir: str
+    per_device_train_batch_size: int
+    gradient_accumulation_steps: int
+    max_completion_length: int
+    log_completions: bool
+    logging_steps: int
+    num_generations: int
+    generation_batch_size: int
+    report_to: tuple[str, ...]
+    run_name: str
+    num_train_epochs: int
+    save_strategy: str
+    save_steps: int
     save_total_limit: int | None = None
     temperature: float = 1.0
     top_p: float = 0.99
     top_k: int = 50
-    importance_sampling_level: str = "sequence"
-    loss_type: str = "dr_grpo"
     epsilon: float = 0.1
     num_iterations: int = 3
     scale_rewards: bool = False
@@ -221,78 +339,98 @@ class TrainSpec:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> "TrainSpec":
-        payload = _dict(data)
-        report_to = payload.get("report_to", ("comet_ml",))
+        payload = _strict_section(
+            "train",
+            data,
+            required=(
+                "loss_type",
+                "importance_sampling_level",
+                "scheduler",
+                "reward",
+                "clip_cov",
+                "top_samples",
+                "use_vllm",
+                "vllm_server_port",
+                "bf16",
+                "gradient_checkpointing",
+                "remove_unused_columns",
+                "ddp_find_unused_parameters",
+                "beta",
+                "weight_decay",
+                "output_dir",
+                "per_device_train_batch_size",
+                "gradient_accumulation_steps",
+                "max_completion_length",
+                "log_completions",
+                "logging_steps",
+                "num_generations",
+                "generation_batch_size",
+                "report_to",
+                "run_name",
+                "num_train_epochs",
+                "save_strategy",
+                "save_steps",
+                "temperature",
+                "top_p",
+                "top_k",
+                "epsilon",
+                "num_iterations",
+                "scale_rewards",
+                "learning_rate",
+            ),
+            optional=("save_total_limit",),
+        )
+        report_to = payload["report_to"]
         if isinstance(report_to, (str, bytes, bytearray)):
             report_to = (str(report_to),)
         else:
             report_to = _tuple(report_to)
-        aliases = {
-            "top_samples_policy": "top_k_policy",
-            "top_sample_policy": "top_k_policy",
-            "reward": "reward_config",
-        }
-        for alias, target in aliases.items():
-            if alias in payload and target not in payload:
-                payload[target] = payload.pop(alias)
         return cls(
-            trainer_type=str(payload["trainer_type"]),
-            loss_mode=str(payload["loss_mode"]),
-            importance_sampling_mode=str(payload["importance_sampling_mode"]),
-            top_k_policy=str(payload["top_k_policy"]),
-            optimizer_policy=str(payload["optimizer_policy"]),
-            scheduler_policy=str(payload["scheduler_policy"]),
-            reward_config=_dict(payload.get("reward_config")),
-            trainer_kwargs=_dict(payload.get("trainer_kwargs")),
-            use_vllm=bool(payload.get("use_vllm", True)),
+            loss_type=str(payload["loss_type"]),
+            importance_sampling_level=str(payload["importance_sampling_level"]),
+            scheduler=str(payload["scheduler"]),
+            reward=RewardSpec.from_mapping(payload["reward"]),
+            clip_cov=bool(payload["clip_cov"]),
+            top_samples=int(payload["top_samples"]),
+            use_vllm=bool(payload["use_vllm"]),
             vllm_server_port=None
-            if payload.get("vllm_server_port") is None
-            else int(payload.get("vllm_server_port")),
-            bf16=bool(payload.get("bf16", True)),
-            gradient_checkpointing=bool(payload.get("gradient_checkpointing", True)),
-            remove_unused_columns=bool(payload.get("remove_unused_columns", False)),
-            ddp_find_unused_parameters=bool(
-                payload.get("ddp_find_unused_parameters", False)
-            ),
-            beta=float(payload.get("beta", 0.0)),
-            weight_decay=float(payload.get("weight_decay", 0.0)),
-            output_dir=str(payload.get("output_dir", "models/test_cadrecodev2")),
-            per_device_train_batch_size=int(
-                payload.get("per_device_train_batch_size", 4)
-            ),
-            gradient_accumulation_steps=int(
-                payload.get("gradient_accumulation_steps", 1)
-            ),
-            max_completion_length=int(payload.get("max_completion_length", 3000)),
-            log_completions=bool(payload.get("log_completions", False)),
-            logging_steps=int(payload.get("logging_steps", 5)),
-            num_generations=int(payload.get("num_generations", 16)),
-            generation_batch_size=int(payload.get("generation_batch_size", 64)),
+            if payload["vllm_server_port"] is None
+            else int(payload["vllm_server_port"]),
+            bf16=bool(payload["bf16"]),
+            gradient_checkpointing=bool(payload["gradient_checkpointing"]),
+            remove_unused_columns=bool(payload["remove_unused_columns"]),
+            ddp_find_unused_parameters=bool(payload["ddp_find_unused_parameters"]),
+            beta=float(payload["beta"]),
+            weight_decay=float(payload["weight_decay"]),
+            output_dir=str(payload["output_dir"]),
+            per_device_train_batch_size=int(payload["per_device_train_batch_size"]),
+            gradient_accumulation_steps=int(payload["gradient_accumulation_steps"]),
+            max_completion_length=int(payload["max_completion_length"]),
+            log_completions=bool(payload["log_completions"]),
+            logging_steps=int(payload["logging_steps"]),
+            num_generations=int(payload["num_generations"]),
+            generation_batch_size=int(payload["generation_batch_size"]),
             report_to=tuple(str(item) for item in report_to),
-            run_name=str(payload.get("run_name", "grpo_cadrecodev2_0")),
-            num_train_epochs=int(payload.get("num_train_epochs", 20)),
-            save_strategy=str(payload.get("save_strategy", "steps")),
-            save_steps=int(payload.get("save_steps", 150)),
+            run_name=str(payload["run_name"]),
+            num_train_epochs=int(payload["num_train_epochs"]),
+            save_strategy=str(payload["save_strategy"]),
+            save_steps=int(payload["save_steps"]),
             save_total_limit=None
             if payload.get("save_total_limit") is None
             else int(payload.get("save_total_limit")),
-            temperature=float(payload.get("temperature", 1.0)),
-            top_p=float(payload.get("top_p", 0.99)),
-            top_k=int(payload.get("top_k", 50)),
-            importance_sampling_level=str(
-                payload.get("importance_sampling_level", "sequence")
-            ),
-            loss_type=str(payload.get("loss_type", "dr_grpo")),
-            epsilon=float(payload.get("epsilon", 0.1)),
-            num_iterations=int(payload.get("num_iterations", 3)),
-            scale_rewards=bool(payload.get("scale_rewards", False)),
-            learning_rate=float(payload.get("learning_rate", 3e-5)),
+            temperature=float(payload["temperature"]),
+            top_p=float(payload["top_p"]),
+            top_k=int(payload["top_k"]),
+            epsilon=float(payload["epsilon"]),
+            num_iterations=int(payload["num_iterations"]),
+            scale_rewards=bool(payload["scale_rewards"]),
+            learning_rate=float(payload["learning_rate"]),
         )
 
 
 @dataclass(frozen=True, slots=True)
 class InferSpec:
-    split: str = "val"
+    split: str
     output_path: str | None = None
     checkpoint: str | None = None
     checkpoint_kind: str = "specific"
@@ -303,17 +441,28 @@ class InferSpec:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> "InferSpec":
-        payload = _dict(data)
-        checkpoint = payload.get("checkpoint_path", payload.get("checkpoint"))
+        payload = _strict_section(
+            "infer",
+            data,
+            required=("split", "checkpoint_kind", "batch_size", "num_workers"),
+            optional=(
+                "output_path",
+                "checkpoint",
+                "raw_recursive",
+                "max_samples",
+            ),
+        )
         return cls(
-            split=str(payload.get("split", "val")),
+            split=str(payload["split"]),
             output_path=None
             if payload.get("output_path") is None
             else str(payload.get("output_path")),
-            checkpoint=None if checkpoint is None else str(checkpoint),
-            checkpoint_kind=str(payload.get("checkpoint_kind", "specific")),
-            batch_size=int(payload.get("batch_size", 8)),
-            num_workers=int(payload.get("num_workers", 0)),
+            checkpoint=None
+            if payload.get("checkpoint") is None
+            else str(payload.get("checkpoint")),
+            checkpoint_kind=str(payload["checkpoint_kind"]),
+            batch_size=int(payload["batch_size"]),
+            num_workers=int(payload["num_workers"]),
             raw_recursive=bool(payload.get("raw_recursive", False)),
             max_samples=None
             if payload.get("max_samples") is None
@@ -328,7 +477,11 @@ class MeshSpec:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> "MeshSpec":
-        payload = _dict(data)
+        payload = _strict_section(
+            "mesh",
+            data,
+            optional=("input_path", "output_dir"),
+        )
         return cls(
             input_path=None
             if payload.get("input_path") is None
@@ -348,7 +501,11 @@ class EvalSpec:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> "EvalSpec":
-        payload = _dict(data)
+        payload = _strict_section(
+            "eval",
+            data,
+            optional=("input_path", "output_path", "split", "suite"),
+        )
         return cls(
             input_path=None
             if payload.get("input_path") is None
@@ -368,7 +525,11 @@ class CompareSpec:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> "CompareSpec":
-        payload = _dict(data)
+        payload = _strict_section(
+            "compare",
+            data,
+            optional=("summaries", "output_path"),
+        )
         return cls(
             summaries=tuple(str(item) for item in _tuple(payload.get("summaries"))),
             output_path=None
@@ -381,31 +542,34 @@ class CompareSpec:
 class RuntimeSpec:
     seed: int = 16
     dataset_split: str = "train"
+    debug: bool = False
     run_id: str | None = None
     git_revision: str | None = None
     comet_experiment_id: str | None = None
     dataset_fingerprint: str | None = None
     resume_path: str = ""
     scheduler_training_steps: int = 200000
-    extras: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> "RuntimeSpec":
-        payload = _dict(data)
-        extras_payload = _dict(payload.get("extras"))
-        consumed = {
-            "seed",
-            "dataset_split",
-            "run_id",
-            "git_revision",
-            "comet_experiment_id",
-            "dataset_fingerprint",
-            "resume_path",
-            "scheduler_training_steps",
-        }
+        payload = _strict_section(
+            "runtime",
+            data,
+            required=("seed", "dataset_split"),
+            optional=(
+                "debug",
+                "run_id",
+                "git_revision",
+                "comet_experiment_id",
+                "dataset_fingerprint",
+                "resume_path",
+                "scheduler_training_steps",
+            ),
+        )
         return cls(
-            seed=int(payload.get("seed", 16)),
-            dataset_split=str(payload.get("dataset_split", "train")),
+            seed=int(payload["seed"]),
+            dataset_split=str(payload["dataset_split"]),
+            debug=bool(payload.get("debug", False)),
             run_id=None
             if payload.get("run_id") is None
             else str(payload.get("run_id")),
@@ -422,20 +586,13 @@ class RuntimeSpec:
             scheduler_training_steps=int(
                 payload.get("scheduler_training_steps", 200000)
             ),
-            extras={
-                **{
-                    k: deepcopy(v)
-                    for k, v in payload.items()
-                    if k not in consumed | {"extras"}
-                },
-                **{k: deepcopy(v) for k, v in extras_payload.items()},
-            },
         )
 
     def to_dict(self) -> dict[str, Any]:
-        payload = {
+        return {
             "seed": self.seed,
             "dataset_split": self.dataset_split,
+            "debug": self.debug,
             "run_id": self.run_id,
             "git_revision": self.git_revision,
             "comet_experiment_id": self.comet_experiment_id,
@@ -443,8 +600,6 @@ class RuntimeSpec:
             "resume_path": self.resume_path,
             "scheduler_training_steps": self.scheduler_training_steps,
         }
-        payload.update(self.extras)
-        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -464,7 +619,23 @@ class MachineProfile:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> "MachineProfile":
-        payload = _dict(data)
+        payload = _strict_section(
+            "system",
+            data,
+            required=("profile_id", "run_root"),
+            optional=(
+                "cache_dir",
+                "checkpoints_root",
+                "artifact_root",
+                "logs_root",
+                "vllm_port",
+                "world_size",
+                "cpu_workers",
+                "vllm_placement_policy",
+                "comet_enabled",
+                "environment",
+            ),
+        )
         return cls(
             profile_id=str(payload["profile_id"]),
             run_root=str(payload["run_root"]),
@@ -510,18 +681,34 @@ class RunConfig:
     compare: CompareSpec
     runtime: RuntimeSpec
     system: SystemConfig
-    common_config_path: str | None = None
-    system_config_path: str | None = None
-    extras: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "RunConfig":
-        payload = _dict(data)
-        system_payload = payload.get("system", payload.get("machine"))
+        payload = _strict_section(
+            "root",
+            data,
+            required=(
+                "profile_id",
+                "experiment_id",
+                "stage",
+                "task",
+                "data",
+                "model",
+                "prepare",
+                "train",
+                "infer",
+                "mesh",
+                "eval",
+                "compare",
+                "runtime",
+                "system",
+            ),
+            optional=("config_path",),
+        )
         return cls(
             profile_id=str(payload["profile_id"]),
-            experiment_id=str(payload.get("experiment_id", payload["profile_id"])),
-            stage=str(payload.get("stage", "unknown")),
+            experiment_id=str(payload["experiment_id"]),
+            stage=str(payload["stage"]),
             config_path=str(payload.get("config_path", "")),
             task=TaskSpec.from_mapping(payload.get("task")),
             data=DataSpec.from_mapping(payload.get("data")),
@@ -533,15 +720,8 @@ class RunConfig:
             eval=EvalSpec.from_mapping(payload.get("eval")),
             compare=CompareSpec.from_mapping(payload.get("compare")),
             runtime=RuntimeSpec.from_mapping(payload.get("runtime")),
-            system=SystemConfig.from_mapping(system_payload),
-            common_config_path=payload.get("common_config_path"),
-            system_config_path=payload.get("system_config_path"),
-            extras=_dict(payload.get("extras")),
+            system=SystemConfig.from_mapping(payload.get("system")),
         )
-
-    @property
-    def machine(self) -> SystemConfig:
-        return self.system
 
 
 ResolvedExperimentConfig = RunConfig
@@ -564,20 +744,6 @@ def _load_mapping(text: str) -> dict[str, Any]:
     if not isinstance(loaded, Mapping):
         raise TypeError(f"Profile document must be a mapping, got {type(loaded)!r}")
     return dict(loaded)
-
-
-def _deep_merge(base: Mapping[str, Any], override: Mapping[str, Any]) -> dict[str, Any]:
-    merged = dict(base)
-    for key, value in override.items():
-        if (
-            key in merged
-            and isinstance(merged[key], Mapping)
-            and isinstance(value, Mapping)
-        ):
-            merged[key] = _deep_merge(merged[key], value)
-        else:
-            merged[key] = deepcopy(value)
-    return merged
 
 
 def _resolve_path(
@@ -624,156 +790,34 @@ def load_profile_document(
 ) -> dict[str, Any]:
     root = Path(profiles_root)
     path = _resolve_path(reference, root, relative_to=_relative_to)
-    data = _load_mapping(_read_text(path))
-    extends = data.pop("extends", None)
-    if not extends:
-        return data
-
-    if isinstance(extends, (str, Path)):
-        extends = [extends]
-
-    merged: dict[str, Any] = {}
-    for item in extends:
-        base_doc = load_profile_document(
-            item, profiles_root=root, _relative_to=path.parent
-        )
-        merged = _deep_merge(merged, base_doc)
-    return _deep_merge(merged, data)
-
-
-def _load_system_document(
-    base_dir: Path,
-    profiles_root: Path,
-    document: Mapping[str, Any],
-    system_reference: str | Path | None,
-) -> tuple[dict[str, Any], str | None]:
-    system_doc = dict(document.get("system", {}))
-    reference = (
-        document.get("system_profile") if system_reference is None else system_reference
-    )
-    if reference is None:
-        return system_doc, None
-
-    resolved = _resolve_path(reference, profiles_root, relative_to=base_dir)
-    loaded = load_profile_document(
-        resolved, profiles_root=profiles_root, _relative_to=resolved.parent
-    )
-    return _deep_merge(loaded, system_doc), str(resolved)
-
-
-def _ensure_section(section_name: str, value: Any) -> dict[str, Any]:
-    if value is None:
-        return {}
-    if isinstance(value, Mapping):
-        return dict(value)
-    raise TypeError(
-        f"Section {section_name!r} must be an inline mapping in the active config tree"
-    )
+    return _load_mapping(_read_text(path))
 
 
 def resolve_run_config(
     reference: str | Path,
     profiles_root: str | Path = "configs",
-    *,
-    system: str | Path | None = None,
 ) -> RunConfig:
     root = Path(profiles_root)
     config_path = _resolve_path(reference, root)
-    stage_document = load_profile_document(config_path, profiles_root=root)
-    base_dir = config_path.parent
-    common_path: Path | None = None
-    common_document: dict[str, Any] = {}
-    if config_path.stem != "common":
-        candidate = base_dir / "common.yaml"
-        if candidate.exists():
-            common_path = candidate
-            common_document = load_profile_document(candidate, profiles_root=root)
-    document = _deep_merge(common_document, stage_document)
-    overrides = _dict(document.pop("overrides", {}))
-    stage = str(document.get("stage", config_path.stem))
-    experiment_id = str(document.get("experiment_id", base_dir.name))
-    profile_id = str(document.get("profile_id", experiment_id))
-
-    task_doc = _ensure_section("task", document.get("task"))
-    data_doc = _ensure_section("data", document.get("data"))
-    model_doc = _ensure_section("model", document.get("model"))
-    prepare_doc = _ensure_section("prepare", document.get("prepare"))
-    train_doc = _ensure_section("train", document.get("train"))
-    infer_doc = _ensure_section("infer", document.get("infer"))
-    mesh_doc = _ensure_section("mesh", document.get("mesh"))
-    eval_doc = _ensure_section("eval", document.get("eval"))
-    compare_doc = _ensure_section("compare", document.get("compare"))
-    runtime_doc = _ensure_section("runtime", document.get("runtime"))
-
-    system_doc, system_config_path = _load_system_document(
-        base_dir, root, document, system
-    )
-    if "profile_id" not in system_doc:
-        system_doc["profile_id"] = str(document.get("system_id", "default"))
-
-    task_doc = _deep_merge(task_doc, _dict(overrides.get("task")))
-    data_doc = _deep_merge(data_doc, _dict(overrides.get("data")))
-    model_doc = _deep_merge(model_doc, _dict(overrides.get("model")))
-    prepare_doc = _deep_merge(prepare_doc, _dict(overrides.get("prepare")))
-    train_doc = _deep_merge(train_doc, _dict(overrides.get("train")))
-    infer_doc = _deep_merge(infer_doc, _dict(overrides.get("infer")))
-    mesh_doc = _deep_merge(mesh_doc, _dict(overrides.get("mesh")))
-    eval_doc = _deep_merge(eval_doc, _dict(overrides.get("eval")))
-    compare_doc = _deep_merge(compare_doc, _dict(overrides.get("compare")))
-    runtime_doc = _deep_merge(runtime_doc, _dict(overrides.get("runtime")))
-    system_doc = _deep_merge(
-        system_doc, _dict(overrides.get("system", overrides.get("machine")))
-    )
+    document = load_profile_document(config_path, profiles_root=root)
 
     return RunConfig(
-        profile_id=profile_id,
-        experiment_id=experiment_id,
-        stage=stage,
+        profile_id=str(document["profile_id"]),
+        experiment_id=str(document["experiment_id"]),
+        stage=str(document["stage"]),
         config_path=str(config_path),
-        common_config_path=None if common_path is None else str(common_path),
-        system_config_path=system_config_path,
-        task=TaskSpec.from_mapping(task_doc),
-        data=DataSpec.from_mapping(data_doc),
-        model=ModelSpec.from_mapping(model_doc),
-        prepare=PrepareSpec.from_mapping(prepare_doc),
-        train=TrainSpec.from_mapping(train_doc),
-        infer=InferSpec.from_mapping(infer_doc),
-        mesh=MeshSpec.from_mapping(mesh_doc),
-        eval=EvalSpec.from_mapping(eval_doc),
-        compare=CompareSpec.from_mapping(compare_doc),
-        runtime=RuntimeSpec.from_mapping(runtime_doc),
-        system=SystemConfig.from_mapping(system_doc),
-        extras={
-            k: deepcopy(v)
-            for k, v in document.items()
-            if k
-            not in {
-                "profile_id",
-                "experiment_id",
-                "stage",
-                "task",
-                "data",
-                "model",
-                "prepare",
-                "train",
-                "infer",
-                "mesh",
-                "eval",
-                "compare",
-                "runtime",
-                "system",
-                "system_profile",
-                "overrides",
-            }
-        },
+        task=TaskSpec.from_mapping(document.get("task")),
+        data=DataSpec.from_mapping(document.get("data")),
+        model=ModelSpec.from_mapping(document.get("model")),
+        prepare=PrepareSpec.from_mapping(document.get("prepare")),
+        train=TrainSpec.from_mapping(document.get("train")),
+        infer=InferSpec.from_mapping(document.get("infer")),
+        mesh=MeshSpec.from_mapping(document.get("mesh")),
+        eval=EvalSpec.from_mapping(document.get("eval")),
+        compare=CompareSpec.from_mapping(document.get("compare")),
+        runtime=RuntimeSpec.from_mapping(document.get("runtime")),
+        system=SystemConfig.from_mapping(document.get("system")),
     )
-
-
-def resolve_experiment_profile(
-    reference: str | Path,
-    profiles_root: str | Path = "configs",
-) -> RunConfig:
-    return resolve_run_config(reference, profiles_root=profiles_root)
 
 
 class ProfileResolver:
@@ -783,18 +827,15 @@ class ProfileResolver:
     def load(self, reference: str | Path) -> dict[str, Any]:
         return load_profile_document(reference, profiles_root=self.profiles_root)
 
-    def resolve(
-        self, reference: str | Path, *, system: str | Path | None = None
-    ) -> RunConfig:
-        return resolve_run_config(
-            reference, profiles_root=self.profiles_root, system=system
-        )
+    def resolve(self, reference: str | Path) -> RunConfig:
+        return resolve_run_config(reference, profiles_root=self.profiles_root)
 
     def replace_root(self, profiles_root: str | Path) -> "ProfileResolver":
         return ProfileResolver(profiles_root)
 
 
 __all__ = [
+    "ConfigError",
     "CompareSpec",
     "DataSpec",
     "EvalSpec",
@@ -805,13 +846,13 @@ __all__ = [
     "PrepareSpec",
     "ProfileResolver",
     "ResolvedExperimentConfig",
+    "RewardSpec",
     "RunConfig",
     "RuntimeSpec",
     "SystemConfig",
     "TaskSpec",
     "TrainSpec",
     "load_profile_document",
-    "resolve_experiment_profile",
     "resolve_run_config",
     "to_serializable",
 ]

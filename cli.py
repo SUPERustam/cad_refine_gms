@@ -2,46 +2,97 @@
 from __future__ import annotations
 
 import argparse
+import collections.abc
+from dataclasses import replace
 import json
-from collections.abc import Callable, Sequence
-from typing import Any
+from pathlib import Path
+import typing
 
-from cad_rl.comparison import (
-    compare_from_resolved,
-    export_comparison_contract,
-    resolve_comparison_config,
-)
-from cad_rl.data.prepare import (
-    export_prepare_contract,
-    prepare_dataset_from_resolved,
-    resolve_prepare_config,
-)
-from cad_rl.evaluation import (
-    evaluate_from_resolved,
-    export_evaluation_contract,
-    resolve_evaluation_config,
-)
-from cad_rl.execution import (
-    build_meshes_from_resolved,
-    export_mesh_contract,
-    resolve_mesh_config,
-)
-from cad_rl.inference import (
-    export_inference_contract,
-    resolve_inference_config,
-    run_inference_from_resolved,
-)
-from cad_rl.training import (
-    export_training_contract,
-    resolve_training_config,
-    train_from_resolved_config,
-)
+import cad_rl
+import cad_rl.config
+import cad_rl.data
+import cad_rl.runtime
+try:  # pragma: no cover - optional stage dependency
+    import cad_rl.comparison
+except Exception:  # pragma: no cover - lightweight environments
+    cad_rl.comparison = None  # type: ignore[attr-defined]
+try:  # pragma: no cover - optional stage dependency
+    import cad_rl.data.prepare
+except Exception:  # pragma: no cover - lightweight environments
+    cad_rl.data.prepare = None  # type: ignore[attr-defined]
+try:  # pragma: no cover - optional stage dependency
+    import cad_rl.evaluation
+except Exception:  # pragma: no cover - lightweight environments
+    cad_rl.evaluation = None  # type: ignore[attr-defined]
+try:  # pragma: no cover - optional stage dependency
+    import cad_rl.execution
+except Exception:  # pragma: no cover - lightweight environments
+    cad_rl.execution = None  # type: ignore[attr-defined]
+try:  # pragma: no cover - optional stage dependency
+    import cad_rl.inference
+except Exception:  # pragma: no cover - lightweight environments
+    cad_rl.inference = None  # type: ignore[attr-defined]
+try:  # pragma: no cover - optional stage dependency
+    import cad_rl.training
+except Exception:  # pragma: no cover - lightweight environments
+    cad_rl.training = None  # type: ignore[attr-defined]
 
 
-ResolvedConfig = Any
-ResolveConfig = Callable[..., ResolvedConfig]
-ExportContract = Callable[[ResolvedConfig], dict[str, Any]]
-RunStage = Callable[..., Any]
+ResolvedConfig = cad_rl.config.RunConfig
+StageRunner = collections.abc.Callable[..., typing.Any] | None
+
+
+STAGES: dict[str, tuple[StageRunner, bool, str]] = {
+    "prepare-dataset": (
+        None
+        if cad_rl.data.prepare is None
+        else cad_rl.data.prepare.prepare_dataset_from_resolved,
+        False,
+        "Prepare a dataset from a stage config",
+    ),
+    "train": (
+        None
+        if cad_rl.training is None
+        else cad_rl.training.train_from_resolved_config,
+        False,
+        "Train from a stage config",
+    ),
+    "resume-train": (
+        None
+        if cad_rl.training is None
+        else cad_rl.training.train_from_resolved_config,
+        True,
+        "Resume training from a stage config",
+    ),
+    "infer": (
+        None
+        if cad_rl.inference is None
+        else cad_rl.inference.run_inference_from_resolved,
+        False,
+        "Run inference from a stage config and emit inference records",
+    ),
+    "build-meshes": (
+        None
+        if cad_rl.execution is None
+        else cad_rl.execution.build_meshes_from_resolved,
+        False,
+        "Execute CadQuery generations and emit mesh records",
+    ),
+    "evaluate": (
+        None
+        if cad_rl.evaluation is None
+        else cad_rl.evaluation.evaluate_from_resolved,
+        False,
+        "Evaluate mesh records and write evaluation summaries",
+    ),
+    "compare-runs": (
+        None
+        if cad_rl.comparison is None
+        else cad_rl.comparison.compare_from_resolved,
+        False,
+        "Compare evaluation summaries from a stage config",
+    ),
+}
 
 
 def _add_common_args(
@@ -50,7 +101,7 @@ def _add_common_args(
     include_checkpoint: bool = False,
 ) -> None:
     parser.add_argument("--config", required=True, help="Stage config path")
-    parser.add_argument("--system", help="Optional system overlay path")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     if include_checkpoint:
         parser.add_argument(
             "--checkpoint",
@@ -62,107 +113,49 @@ def _add_common_args(
     )
 
 
-def _run_stage(args: argparse.Namespace) -> Any:
-    resolved = args.resolve_config(args.config, system=args.system)
+def _resolve_config(config_path: str, *, debug: bool = False) -> ResolvedConfig:
+    resolved = cad_rl.config.resolve_run_config(
+        config_path, profiles_root=Path(config_path).parents[1]
+    )
+    effective_debug = bool(debug or resolved.runtime.debug)
+    if resolved.runtime.debug != effective_debug:
+        resolved = replace(
+            resolved,
+            runtime=replace(resolved.runtime, debug=effective_debug),
+        )
+    return resolved
+
+
+def _run_stage(args: argparse.Namespace) -> typing.Any:
+    resolved = _resolve_config(args.config, debug=args.debug)
     if args.dry_run:
-        print(json.dumps(args.export_contract(resolved), indent=2))
+        print(json.dumps(cad_rl.config.to_serializable(resolved), indent=2))
         return None
+    if args.run_stage is None:
+        raise RuntimeError(f"Stage {args.command!r} is unavailable in this environment")
+    cad_rl.runtime.setup_run_logging(
+        resolved,
+        stage=args.command,
+        debug=resolved.runtime.debug,
+    )
     if getattr(args, "checkpoint", None) is not None:
         return args.run_stage(resolved, resume_reference=args.checkpoint)
     return args.run_stage(resolved)
 
 
-def _register_stage(
-    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
-    *,
-    name: str,
-    description: str,
-    resolve_config: ResolveConfig,
-    export_contract: ExportContract,
-    run_stage: RunStage,
-    aliases: Sequence[str] = (),
-    include_checkpoint: bool = False,
-) -> None:
-    parser = subparsers.add_parser(name, aliases=list(aliases), help=description)
-    parser.description = description
-    _add_common_args(parser, include_checkpoint=include_checkpoint)
-    parser.set_defaults(
-        resolve_config=resolve_config,
-        export_contract=export_contract,
-        run_stage=run_stage,
-        handler=_run_stage,
-    )
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Unified CAD RL stage CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
+    for name, (run_stage, include_checkpoint, description) in STAGES.items():
+        stage_parser = subparsers.add_parser(name, help=description)
+        stage_parser.description = description
+        _add_common_args(stage_parser, include_checkpoint=include_checkpoint)
+        stage_parser.set_defaults(handler=_run_stage, run_stage=run_stage)
 
-    _register_stage(
-        subparsers,
-        name="prepare-dataset",
-        aliases=("prepare",),
-        description="Prepare a dataset from a stage config",
-        resolve_config=resolve_prepare_config,
-        export_contract=export_prepare_contract,
-        run_stage=prepare_dataset_from_resolved,
-    )
-    _register_stage(
-        subparsers,
-        name="train",
-        description="Train from a stage config",
-        resolve_config=resolve_training_config,
-        export_contract=export_training_contract,
-        run_stage=train_from_resolved_config,
-    )
-    _register_stage(
-        subparsers,
-        name="resume-train",
-        aliases=("resume",),
-        description="Resume training from a stage config",
-        resolve_config=resolve_training_config,
-        export_contract=export_training_contract,
-        run_stage=train_from_resolved_config,
-        include_checkpoint=True,
-    )
-    _register_stage(
-        subparsers,
-        name="infer",
-        description="Run inference from a stage config and emit inference records",
-        resolve_config=resolve_inference_config,
-        export_contract=export_inference_contract,
-        run_stage=run_inference_from_resolved,
-    )
-    _register_stage(
-        subparsers,
-        name="build-meshes",
-        aliases=("build",),
-        description="Execute CadQuery generations and emit mesh records",
-        resolve_config=resolve_mesh_config,
-        export_contract=export_mesh_contract,
-        run_stage=build_meshes_from_resolved,
-    )
-    _register_stage(
-        subparsers,
-        name="evaluate",
-        description="Evaluate mesh records and write evaluation summaries",
-        resolve_config=resolve_evaluation_config,
-        export_contract=export_evaluation_contract,
-        run_stage=evaluate_from_resolved,
-    )
-    _register_stage(
-        subparsers,
-        name="compare-runs",
-        aliases=("compare",),
-        description="Compare evaluation summaries from a stage config",
-        resolve_config=resolve_comparison_config,
-        export_contract=export_comparison_contract,
-        run_stage=compare_from_resolved,
-    )
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> Any:
+def main(argv: collections.abc.Sequence[str] | None = None) -> typing.Any:
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.handler(args)

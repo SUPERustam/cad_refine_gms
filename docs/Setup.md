@@ -1,6 +1,6 @@
 # Setup
 
-This repo is driven by stage config documents under `configs/` and writes run state to the filesystem. The codebase currently assumes a local system config similar to `configs/systems/local.yaml`.
+This repo is driven by self-contained stage config documents under `configs/` and writes run state to the filesystem. Each command resolves one YAML file that already includes its `system` and `runtime` sections.
 
 ## Environment variables
 
@@ -15,11 +15,11 @@ export COMET_PROJECT_NAME=...
 export COMET_WORKSPACE=...
 ```
 
-`configs/systems/local.yaml` currently keeps Comet disabled, so the Comet variables are optional unless you enable that integration in your system or runtime config.
+The checked-in demo configs keep Comet disabled, so the Comet variables are optional unless you enable that integration in the stage config you are running.
 
 ## Expected local directories
 
-The default local system config points at:
+The checked-in demo configs point at:
 
 - `./runs` for run directories
 - `./.cache/cad_rl` for cacheable artifacts
@@ -28,21 +28,25 @@ Training creates run-local subdirectories for `checkpoints/`, `artifacts/`, and 
 
 ## Config layout
 
-Experiment directories compose one shared file plus stage overlays:
+Each stage config is standalone:
 
-- `configs/demo/common.yaml`
 - `configs/demo/prepare_dataset.yaml`
 - `configs/demo/train.yaml`
 - `configs/demo/infer.yaml`
 - `configs/demo/build_meshes.yaml`
 - `configs/demo/evaluate.yaml`
 - `configs/demo/compare.yaml`
-- optional `configs/systems/*.yaml`
 
 To inspect the fully resolved training contract:
 
 ```bash
 python cli.py train --config configs/demo/train.yaml --dry-run
+```
+
+To force debug logging for a single invocation without editing YAML:
+
+```bash
+python cli.py train --config configs/demo/train.yaml --debug --dry-run
 ```
 
 ## Dataset preparation
@@ -59,7 +63,7 @@ Create a prepared dataset from the stage config:
 python cli.py prepare-dataset --config configs/demo/prepare_dataset.yaml
 ```
 
-The script writes a serialized HF dataset plus `manifest.json` into the configured output directory. Dataset source values come from the resolved `prepare` and `data` sections.
+The command writes a serialized HF dataset plus `manifest.json` into the configured output directory. Dataset source values come from the resolved `prepare` and `data` sections.
 
 Dataset preparation is the only part of the repo that depends on the STL visualization helper path under `cad_rl.data`. If your environment does not provide `vis_for_norm_parts`, `cli.py prepare-dataset` now fails with a targeted error explaining that the dependency is optional and dataset-prep-specific.
 
@@ -98,6 +102,8 @@ python cli.py resume-train \
 ```
 
 `--checkpoint` accepts `latest`, `best`, a numeric step, or an explicit checkpoint path.
+
+All runtime-stage commands also initialize run-scoped logging under `runs/<run_id>/logs/`. Use `--debug` when you want debug-level console output and debug-level file logs for that invocation.
 
 ## Related docs
 

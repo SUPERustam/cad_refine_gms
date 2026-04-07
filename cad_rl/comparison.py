@@ -1,38 +1,38 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
-from cad_rl.config import RunConfig, resolve_run_config, to_serializable
-from cad_rl.runtime import ComparisonReport
+import cad_rl.config
+import cad_rl.runtime
 
 
 def _load_summary(path: str | Path) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def resolve_comparison_config(
-    config_path: str | Path,
-    *,
-    system: str | Path | None = None,
-) -> RunConfig:
-    return resolve_run_config(
-        config_path, profiles_root=Path(config_path).parents[1], system=system
-    )
-
-
-def export_comparison_contract(config: RunConfig) -> dict:
-    return to_serializable(config)
-
-
 def compare_summaries(
     summary_paths: list[str | Path], output_path: str | Path
-) -> ComparisonReport:
+) -> cad_rl.runtime.ComparisonReport:
     summaries = []
+    checkpoint_refs = []
     for path in summary_paths:
         data = _load_summary(path)
         data["source"] = str(path)
         summaries.append(data)
+        checkpoint_path = data.get("checkpoint_path")
+        if checkpoint_path:
+            checkpoint_refs.append(
+                cad_rl.runtime.CheckpointRef(
+                    run_id=str(data.get("run_id", path)),
+                    step=None
+                    if data.get("checkpoint_step") is None
+                    else int(data["checkpoint_step"]),
+                    path=str(checkpoint_path),
+                    kind="specific",
+                )
+            )
 
     leaderboard = sorted(
         summaries,
@@ -42,10 +42,10 @@ def compare_summaries(
             item.get("cd_mean") or float("inf"),
         ),
     )
-    report = ComparisonReport(
+    report = cad_rl.runtime.ComparisonReport(
         report_id=Path(output_path).stem,
         run_ids=tuple(str(item.get("run_id", item["source"])) for item in summaries),
-        checkpoint_refs=(),
+        checkpoint_refs=tuple(checkpoint_refs),
         leaderboard=tuple(leaderboard),
         checkpoint_history=tuple(
             {
@@ -70,15 +70,23 @@ def compare_summaries(
     )
     output_path = Path(output_path)
     output_path.write_text(
-        json.dumps(to_serializable(report), indent=2), encoding="utf-8"
+        json.dumps(cad_rl.config.to_serializable(report), indent=2), encoding="utf-8"
     )
     return report
 
 
-def compare_from_resolved(config: RunConfig) -> ComparisonReport:
+def compare_from_resolved(
+    config: cad_rl.config.RunConfig,
+) -> cad_rl.runtime.ComparisonReport:
+    log_path = cad_rl.runtime.setup_run_logging(config, stage="compare-runs")
+    logger = logging.getLogger(__name__)
     if config.compare.output_path is None:
         raise ValueError("Comparison stage requires compare.output_path")
-    return compare_summaries(
+    logger.info("Logging to %s", log_path)
+    logger.info("Comparing summaries: %s", ", ".join(config.compare.summaries))
+    report = compare_summaries(
         list(config.compare.summaries),
         config.compare.output_path,
     )
+    logger.info("Wrote comparison report to %s", config.compare.output_path)
+    return report

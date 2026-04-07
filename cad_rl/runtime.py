@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +14,9 @@ try:  # pragma: no cover - optional dependency
     import yaml  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
     yaml = None
+
+
+DEFAULT_TRAINER_ID = "TopSampleGRPOTrainer"
 
 
 def _dict(value: Any) -> dict[str, Any]:
@@ -36,12 +41,89 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _coerce_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on", "debug"}:
+            return True
+        if normalized in {"0", "false", "no", "off", "info"}:
+            return False
+    return bool(value)
+
+
+def _resolve_debug_flag(value: Any, fallback: Any = None) -> bool:
+    resolved = _coerce_bool(value)
+    if resolved is not None:
+        return resolved
+    resolved = _coerce_bool(fallback)
+    return bool(resolved) if resolved is not None else False
+
+
+def _configure_root_logger(log_path: Path, *, debug: bool) -> None:
+    root = logging.getLogger()
+    for handler in list(root.handlers):
+        root.removeHandler(handler)
+        try:
+            handler.close()
+        except Exception:  # pragma: no cover - defensive cleanup
+            pass
+
+    root.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+    console = logging.StreamHandler(stream=sys.stdout)
+    console.setLevel(logging.DEBUG if debug else logging.INFO)
+    console.setFormatter(formatter)
+
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+
+    root.addHandler(console)
+    root.addHandler(file_handler)
+
+
 def _write_yaml(path: Path, payload: Any) -> None:
     if yaml is None:
         return
     path.write_text(
         yaml.safe_dump(payload, sort_keys=False),  # type: ignore[no-untyped-call]
         encoding="utf-8",
+    )
+
+
+def _build_run_manifest(
+    *,
+    run_id: str,
+    resolved: RunConfig,
+    git_revision: str | None = None,
+    seed: int | None = None,
+    dataset_fingerprint: str | None = None,
+    comet_experiment_id: str | None = None,
+    latest_checkpoint: str | None = None,
+    checkpoint_inventory: Iterable["CheckpointRef"] = (),
+    resolved_config_path: str,
+) -> "RunManifest":
+    return RunManifest(
+        run_id=run_id,
+        resolved_config_path=resolved_config_path,
+        git_revision=git_revision,
+        seed=seed,
+        dataset_fingerprint=dataset_fingerprint,
+        machine_profile_id=resolved.system.profile_id,
+        task_id=resolved.task.task_id,
+        model_id=resolved.model.base_checkpoint,
+        trainer_id=DEFAULT_TRAINER_ID,
+        checkpoint_inventory=tuple(checkpoint_inventory),
+        latest_checkpoint=latest_checkpoint,
+        comet_experiment_id=comet_experiment_id,
+        metadata={"created_at": _now_iso()},
     )
 
 
@@ -257,6 +339,12 @@ class RunRegistry:
     def run_dir(self, run_id: str) -> Path:
         return self.base_dir / run_id
 
+    def logs_dir(self, run_id: str) -> Path:
+        return self.run_dir(run_id) / "logs"
+
+    def log_path(self, run_id: str, stage: str = "run") -> Path:
+        return self.logs_dir(run_id) / f"{stage}.log"
+
     def manifest_path(self, run_id: str) -> Path:
         return self.run_dir(run_id) / "manifest.json"
 
@@ -277,7 +365,7 @@ class RunRegistry:
         run_dir.mkdir(parents=True, exist_ok=True)
         self.checkpoints_dir(run_id).mkdir(parents=True, exist_ok=True)
         (run_dir / "artifacts").mkdir(parents=True, exist_ok=True)
-        (run_dir / "logs").mkdir(parents=True, exist_ok=True)
+        self.logs_dir(run_id).mkdir(parents=True, exist_ok=True)
         return run_dir
 
     def write_resolved_config(self, run_id: str, resolved: RunConfig) -> Path:
@@ -394,20 +482,16 @@ class RunRegistry:
         latest_checkpoint: str | None = None,
         checkpoint_inventory: Iterable[CheckpointRef] = (),
     ) -> RunManifest:
-        manifest = RunManifest(
+        manifest = _build_run_manifest(
             run_id=run_id,
-            resolved_config_path=str(self.resolved_config_path(run_id)),
+            resolved=resolved,
             git_revision=git_revision,
             seed=seed,
             dataset_fingerprint=dataset_fingerprint,
-            machine_profile_id=resolved.system.profile_id,
-            task_id=resolved.task.task_id,
-            model_id=resolved.model.base_checkpoint,
-            trainer_id=resolved.train.trainer_type,
-            checkpoint_inventory=tuple(checkpoint_inventory),
-            latest_checkpoint=latest_checkpoint,
             comet_experiment_id=comet_experiment_id,
-            metadata={"created_at": _now_iso()},
+            latest_checkpoint=latest_checkpoint,
+            checkpoint_inventory=checkpoint_inventory,
+            resolved_config_path=str(self.resolved_config_path(run_id)),
         )
         self.write_manifest(manifest)
         if latest_checkpoint is not None:
@@ -429,17 +513,19 @@ class RunRegistry:
         latest_checkpoint: str | None = None,
     ) -> RunManifest:
         self.ensure_run_dir(run_id)
-        self.write_resolved_config(run_id, resolved)
-        return self.write_manifest_from_resolved(
-            resolved,
-            run_id,
+        manifest = _build_run_manifest(
+            run_id=run_id,
+            resolved=resolved,
             git_revision=git_revision,
             seed=seed,
             dataset_fingerprint=dataset_fingerprint,
             comet_experiment_id=comet_experiment_id,
             latest_checkpoint=latest_checkpoint,
             checkpoint_inventory=checkpoint_inventory,
+            resolved_config_path=str(self.resolved_config_path(run_id)),
         )
+        materialize_resolved_run(self.run_dir(run_id), resolved, manifest)
+        return manifest
 
 
 def materialize_resolved_run(
@@ -476,6 +562,24 @@ def materialize_resolved_run(
         )
 
     return {"resolved_config": resolved_config_path, "manifest": manifest_path}
+
+
+def setup_run_logging(
+    resolved: RunConfig,
+    *,
+    stage: str = "run",
+    debug: bool | None = None,
+    run_id: str | None = None,
+) -> Path:
+    active_run_id = str(run_id or resolved.runtime.run_id or resolved.experiment_id)
+    registry = RunRegistry(resolved.system.run_root)
+    registry.ensure_run_dir(active_run_id)
+    log_path = registry.log_path(active_run_id, stage=stage)
+    _configure_root_logger(
+        log_path,
+        debug=_resolve_debug_flag(debug, resolved.runtime.debug),
+    )
+    return log_path
 
 
 def select_latest_checkpoint(run_id: str, registry: RunRegistry) -> CheckpointRef:
@@ -551,6 +655,7 @@ __all__ = [
     "RunManifest",
     "RunRegistry",
     "materialize_resolved_run",
+    "setup_run_logging",
     "select_best_checkpoint",
     "select_checkpoint",
     "select_latest_checkpoint",

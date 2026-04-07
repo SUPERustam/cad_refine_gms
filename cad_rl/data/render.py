@@ -10,6 +10,17 @@ except Exception as exc:  # pragma: no cover - exercised via explicit failure te
     _BasePlotter = None
     _VIS_IMPORT_ERROR = exc
 
+try:  # pragma: no cover - optional dataset-prep dependency
+    import numpy as np
+    import pyvista as pv
+    from PIL import Image
+except Exception as exc:  # pragma: no cover - exercised via explicit failure test
+    np = None
+    pv = None
+    Image = None
+    if _VIS_IMPORT_ERROR is None:
+        _VIS_IMPORT_ERROR = exc
+
 
 def _raise_missing_vis_dependency() -> None:
     message = (
@@ -24,10 +35,8 @@ if _BasePlotter is not None:
 
     class Plotter1_1(_BasePlotter):
         def _get_img(self, mesh_path, cmap, apply_augs=False, color=None):
-            import numpy as np
-            import pyvista as pv
-            from PIL import Image
-
+            if np is None or pv is None or Image is None:
+                _raise_missing_vis_dependency()
             mesh = pv.read(mesh_path)
             bounds = np.array(mesh.bounds)
             mins = bounds[::2]

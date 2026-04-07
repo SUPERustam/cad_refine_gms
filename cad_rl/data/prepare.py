@@ -4,13 +4,17 @@ import json
 from pathlib import Path
 from typing import Any
 
-from cad_rl.config import RunConfig, resolve_run_config, to_serializable
-from cad_rl.data.datasets import (
-    PreparedDatasetManifest,
-    STLImageToCode,
-    fingerprint_prepared_dataset,
-)
-from cad_rl.modeling import create_processor_from_spec
+import cad_rl.config
+import cad_rl.data.datasets
+import cad_rl.modeling
+
+try:  # pragma: no cover - optional dataset dependency
+    from datasets import Dataset, Features, Image as HFImage, Value
+except Exception:  # pragma: no cover - lightweight environments
+    Dataset = None
+    Features = None
+    HFImage = None
+    Value = None
 
 try:  # pragma: no cover - optional dependency fallback
     from qwen_vl_utils.vision_process import fetch_image
@@ -31,7 +35,9 @@ def _render_prompt(processor: Any, image: Any) -> str:
     )
 
 
-def _build_rows(dataset: STLImageToCode, processor: Any) -> list[dict[str, Any]]:
+def _build_rows(
+    dataset: cad_rl.data.datasets.STLImageToCode, processor: Any
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for idx in range(len(dataset)):
         example = dataset[idx]
@@ -47,24 +53,10 @@ def _build_rows(dataset: STLImageToCode, processor: Any) -> list[dict[str, Any]]
     return rows
 
 
-def resolve_prepare_config(
-    config_path: str | Path,
-    *,
-    system: str | Path | None = None,
-) -> RunConfig:
-    return resolve_run_config(
-        config_path, profiles_root=Path(config_path).parents[1], system=system
-    )
-
-
-def export_prepare_contract(config: RunConfig) -> dict:
-    return to_serializable(config)
-
-
-def prepare_dataset_from_resolved(config: RunConfig):
-    from datasets import Dataset, Features, Image as HFImage, Value
-
-    processor = create_processor_from_spec(config.model)
+def prepare_dataset_from_resolved(config: cad_rl.config.RunConfig):
+    if None in {Dataset, Features, HFImage, Value}:
+        raise RuntimeError("datasets is required for dataset preparation")
+    processor = cad_rl.modeling.create_processor_from_spec(config.model)
     split = config.prepare.split
     raw_root = config.prepare.raw_root or config.data.raw_dataset_root
     pickle_file = config.prepare.pickle_file or config.data.raw_dataset_pickle
@@ -81,7 +73,7 @@ def prepare_dataset_from_resolved(config: RunConfig):
         )
     output_dir.parent.mkdir(parents=True, exist_ok=True)
 
-    source = STLImageToCode(
+    source = cad_rl.data.datasets.STLImageToCode(
         Path(raw_root),
         pickle_file=Path(pickle_file) if pickle_file else None,
         shuffle=config.prepare.shuffle,
@@ -105,8 +97,8 @@ def prepare_dataset_from_resolved(config: RunConfig):
     ).cast(features)
     dataset.save_to_disk(str(output_dir))
 
-    fingerprint = fingerprint_prepared_dataset(output_dir)
-    manifest = PreparedDatasetManifest(
+    fingerprint = cad_rl.data.datasets.fingerprint_prepared_dataset(output_dir)
+    manifest = cad_rl.data.datasets.PreparedDatasetManifest(
         task_id=config.task.task_id,
         split=split,
         source_root=str(raw_root),
@@ -121,10 +113,3 @@ def prepare_dataset_from_resolved(config: RunConfig):
         json.dumps(manifest.to_dict(), indent=2, sort_keys=True), encoding="utf-8"
     )
     return {"config": config, "manifest": manifest, "output_dir": output_dir}
-
-
-def prepare_dataset_from_config(
-    config_path: str | Path, *, system: str | Path | None = None
-):
-    config = resolve_prepare_config(config_path, system=system)
-    return prepare_dataset_from_resolved(config)

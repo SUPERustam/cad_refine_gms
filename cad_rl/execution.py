@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from multiprocessing import Process, get_context
@@ -8,9 +9,9 @@ from multiprocessing.pool import Pool
 from pathlib import Path
 from typing import Any
 
-from cad_rl.config import RunConfig, resolve_run_config, to_serializable
-from cad_rl.inference import load_jsonl
-from cad_rl.runtime import InferenceRecord, MeshRecord
+import cad_rl.config
+import cad_rl.inference
+import cad_rl.runtime
 
 try:  # pragma: no cover - optional dependency
     import trimesh
@@ -151,22 +152,6 @@ def execute_generated_codes(texts, meshes, max_workers=None, var_name="result"):
         else:
             results.append(output)
     return results
-
-
-def resolve_mesh_config(
-    config_path: str | Path,
-    *,
-    system: str | Path | None = None,
-) -> RunConfig:
-    return resolve_run_config(
-        config_path, profiles_root=Path(config_path).parents[1], system=system
-    )
-
-
-def export_mesh_contract(config: RunConfig) -> dict:
-    return to_serializable(config)
-
-
 def build_mesh_records(
     records: list[dict], output_dir: str | Path, var_name: str = "result"
 ) -> Path:
@@ -179,8 +164,8 @@ def build_mesh_records(
         for index, item in enumerate(records):
             record = (
                 item
-                if isinstance(item, InferenceRecord)
-                else InferenceRecord.from_mapping(item)
+                if isinstance(item, cad_rl.runtime.InferenceRecord)
+                else cad_rl.runtime.InferenceRecord.from_mapping(item)
             )
             started = time.time()
             mesh = execute_code_to_mesh(record.raw_generation or "", var_name=var_name)
@@ -193,7 +178,7 @@ def build_mesh_records(
                 error = "cadquery_execution_failed"
             else:
                 mesh.export(str(mesh_path))
-            row = MeshRecord(
+            row = cad_rl.runtime.MeshRecord(
                 run_id=record.run_id,
                 checkpoint=record.checkpoint,
                 sample_id=record.sample_id,
@@ -207,16 +192,22 @@ def build_mesh_records(
                     "source_record_status": record.status,
                 },
             )
-            handle.write(json.dumps(to_serializable(row)) + "\n")
+            handle.write(json.dumps(cad_rl.config.to_serializable(row)) + "\n")
     return manifest_path
 
 
-def build_meshes_from_resolved(config: RunConfig) -> Path:
+def build_meshes_from_resolved(config: cad_rl.config.RunConfig) -> Path:
+    log_path = cad_rl.runtime.setup_run_logging(config, stage="build-meshes")
+    logger = logging.getLogger(__name__)
     if config.mesh.input_path is None or config.mesh.output_dir is None:
         raise ValueError("Mesh stage requires mesh.input_path and mesh.output_dir")
-    records = load_jsonl(config.mesh.input_path)
-    return build_mesh_records(
+    logger.info("Logging to %s", log_path)
+    logger.info("Building meshes from %s", config.mesh.input_path)
+    records = cad_rl.inference.load_jsonl(config.mesh.input_path)
+    output_path = build_mesh_records(
         records,
         config.mesh.output_dir,
         var_name=config.task.output_var_name,
     )
+    logger.info("Wrote mesh records to %s", output_path)
+    return output_path

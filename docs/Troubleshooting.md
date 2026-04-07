@@ -36,7 +36,7 @@ If you see an error mentioning `vis_for_norm_parts`:
 
 If generation fails around connection or startup:
 
-- compare `train.vllm_server_port` with the resolved system config `vllm_port`
+- verify `train.vllm_server_port` matches the port your generation service is actually using
 - verify any required environment variables from `system.environment`
 - inspect the resolved contract with `--dry-run` before launching the run
 
@@ -87,3 +87,14 @@ Inspect the generated inference JSONL and evaluation outputs before changing tra
 - the aggregate summary at the same path with suffix `.summary.json`
 
 `cli.py compare-runs` reads the summary JSON paths configured in `compare.summaries`, not the raw per-sample JSONL.
+
+## Dry-run or CLI output does not match old config docs
+
+The current contract is stricter than the older docs:
+
+- each command resolves one self-contained stage YAML
+- there is no implicit `common.yaml`
+- there is no CLI `--system` overlay
+- training fields live directly under `train`, with reward settings under `train.reward`
+
+If your local config still uses old keys such as `train.reward_config`, `train.trainer_kwargs`, or `train.scheduler_policy`, update the YAML to the current schema before running the stage.

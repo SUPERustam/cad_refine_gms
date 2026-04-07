@@ -1,6 +1,6 @@
 # Reinforcement Learning Practical Guide
 
-This repo exposes a clean Python script surface. Training, resume, and downstream analysis are driven by resolved profiles and filesystem artifacts, not by ad hoc shell wrappers.
+This repo exposes a clean Python script surface. Training, resume, and downstream analysis are driven by resolved stage configs and filesystem artifacts, not by ad hoc shell wrappers.
 
 ## Before you run anything
 
@@ -32,7 +32,7 @@ The training pipeline resolves the stage config, fingerprints the prepared train
 - `artifacts/`
 - `logs/`
 
-If `PyYAML` is available, YAML mirrors are written next to the JSON files.
+Run-scoped logging is initialized before stage execution. Use `--debug` to raise console verbosity for a single command.
 
 ## Resume
 
@@ -63,9 +63,9 @@ The training contract comes from the resolved stage config. The current code pat
 | `task.output_var_name` | Expected CadQuery output variable |
 | `model.base_checkpoint` | Base or SFT checkpoint family |
 | `model.processor_kwargs` | Qwen processor settings |
-| `train.reward_config` | Reward coefficients and failure behavior |
-| `train.trainer_kwargs.top_samples` | Top-sample CPPO selection size |
-| `train.scheduler_policy` | Current scheduler variant, for example `constant` or `cosine` |
+| `train.reward` | Reward coefficients and failure behavior |
+| `train.top_samples` | Top-sample CPPO selection size |
+| `train.scheduler` | Current scheduler variant, for example `constant` or `cosine` |
 | `train.num_generations` | Number of completions per prompt |
 | `train.max_completion_length` | Completion token cap |
 | `system.run_root` | Base directory for run artifacts |
@@ -73,13 +73,13 @@ The training contract comes from the resolved stage config. The current code pat
 
 ## Inference
 
-Inference is stage-config driven:
+Inference is stage-config driven and resolves symbolic checkpoints through the runtime registry:
 
 ```bash
 python cli.py infer --config configs/demo/infer.yaml
 ```
 
-The output is JSONL. Each row contains runtime inference records resolved from the stage config, including the sample id, checkpoint reference, raw generation, wrapped code, timing, and metadata.
+The output is JSONL. Each row contains a runtime inference record including the sample id, resolved checkpoint reference, raw generation, wrapped code, timing, and metadata.
 
 ## Mesh building
 
@@ -111,6 +111,9 @@ The evaluation pipeline writes:
 
 Current summary fields include:
 
+- `run_id`
+- `checkpoint_path`
+- `checkpoint_step`
 - `samples`
 - `invalid_fraction`
 - `iou_mean`, `iou_median`, `iou_min`, `iou_max`
@@ -128,8 +131,9 @@ python cli.py compare-runs --config configs/demo/compare.yaml
 The report contains:
 
 - `leaderboard`
-- `checkpoint_over_time`
+- `checkpoint_history`
 - `diff_report`
+- `summary`
 
 ## Monitoring
 

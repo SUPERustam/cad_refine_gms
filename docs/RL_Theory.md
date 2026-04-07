@@ -36,7 +36,7 @@ To improve training stability and focus on the most informative samples, the fro
 - These samples represent the "best" and "worst" performers relative to the group mean, providing the strongest gradient signal.
 
 ### 3. Reward function
-The reward is the optimization target for the RL loop. The current configs expose reward settings through `train.reward_config`:
+The reward is the optimization target for the RL loop. The current configs expose reward settings through `train.reward`:
 - **Execution Check**: If the code fails to execute or doesn't produce a valid mesh, it receives a `failure_reward` (e.g., -10 or 0).
 - **Geometric Metrics**: If execution succeeds, we compute:
     - **IoU (Intersection over Union)**: Volumetric overlap between predicted and GT meshes.
@@ -46,7 +46,7 @@ The reward is the optimization target for the RL loop. The current configs expos
 
 ## Distributed Execution and vLLM
 
-Generation is designed around vLLM-enabled training configs, with runtime and system settings controlling ports and environment setup.
+Generation is designed around vLLM-enabled training configs, with stage config settings controlling ports and environment setup.
 
 ```mermaid
 sequenceDiagram
@@ -74,11 +74,10 @@ sequenceDiagram
 
 ## Current config variants
 
-The repo now expresses variants through stage configs under `configs/<experiment>/`.
+The repo now expresses variants through standalone stage configs under `configs/<experiment>/`.
 
 In the checked-in demo tree, the active examples are:
 
-- `configs/demo/common.yaml`
 - `configs/demo/train.yaml`
 - `configs/demo/infer.yaml`
 - `configs/demo/build_meshes.yaml`

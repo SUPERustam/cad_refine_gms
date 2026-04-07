@@ -1,28 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import numpy as np
 
-from cad_rl.config import RunConfig, resolve_run_config, to_serializable
-from cad_rl.inference import load_jsonl
-from cad_rl.metrics import compute_metrics_from_mesh_paths
-from cad_rl.runtime import EvalRecord, MeshRecord
-
-
-def resolve_evaluation_config(
-    config_path: str | Path,
-    *,
-    system: str | Path | None = None,
-) -> RunConfig:
-    return resolve_run_config(
-        config_path, profiles_root=Path(config_path).parents[1], system=system
-    )
-
-
-def export_evaluation_contract(config: RunConfig) -> dict:
-    return to_serializable(config)
+import cad_rl.config
+import cad_rl.inference
+import cad_rl.metrics
+import cad_rl.runtime
 
 
 def evaluate_mesh_records(
@@ -35,11 +22,13 @@ def evaluate_mesh_records(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     typed_records = [
-        item if isinstance(item, MeshRecord) else MeshRecord.from_mapping(item)
+        item
+        if isinstance(item, cad_rl.runtime.MeshRecord)
+        else cad_rl.runtime.MeshRecord.from_mapping(item)
         for item in records
     ]
     metrics = [
-        compute_metrics_from_mesh_paths(
+        cad_rl.metrics.compute_metrics_from_mesh_paths(
             record.mesh_path, record.metadata.get("target_mesh_path")
         )
         for record in typed_records
@@ -60,7 +49,7 @@ def evaluate_mesh_records(
             ious.append(metric["iou"])
             cds.append(metric["cd"])
         eval_rows.append(
-            EvalRecord(
+            cad_rl.runtime.EvalRecord(
                 run_id=record.run_id,
                 checkpoint=record.checkpoint,
                 task_id=str(record.metadata.get("task_id", "unknown")),
@@ -84,6 +73,12 @@ def evaluate_mesh_records(
         )
 
     summary = {
+        "run_id": typed_records[0].run_id if typed_records else None,
+        "checkpoint_path": typed_records[0].checkpoint.path if typed_records else None,
+        "checkpoint_step": typed_records[0].checkpoint.step if typed_records else None,
+        "task_id": typed_records[0].metadata.get("task_id") if typed_records else None,
+        "suite": suite,
+        "split": split,
         "samples": len(typed_records),
         "invalid_fraction": invalid / len(typed_records) if typed_records else 0.0,
         "iou_mean": float(np.mean(ious)) if ious else None,
@@ -99,22 +94,31 @@ def evaluate_mesh_records(
 
     with output_path.open("w", encoding="utf-8") as handle:
         for row in eval_rows:
-            handle.write(json.dumps(to_serializable(row)) + "\n")
+            handle.write(json.dumps(cad_rl.config.to_serializable(row)) + "\n")
     output_path.with_suffix(".summary.json").write_text(
         json.dumps(summary, indent=2), encoding="utf-8"
     )
     return summary
 
 
-def evaluate_from_resolved(config: RunConfig) -> dict:
+def evaluate_from_resolved(config: cad_rl.config.RunConfig) -> dict:
+    log_path = cad_rl.runtime.setup_run_logging(config, stage="evaluate")
+    logger = logging.getLogger(__name__)
     if config.eval.input_path is None or config.eval.output_path is None:
         raise ValueError(
             "Evaluation stage requires eval.input_path and eval.output_path"
         )
-    records = load_jsonl(config.eval.input_path)
-    return evaluate_mesh_records(
+    logger.info("Logging to %s", log_path)
+    logger.info("Evaluating mesh records from %s", config.eval.input_path)
+    records = cad_rl.inference.load_jsonl(config.eval.input_path)
+    summary = evaluate_mesh_records(
         records,
         config.eval.output_path,
         split=config.eval.split,
         suite=config.eval.suite,
     )
+    logger.info(
+        "Wrote evaluation summary to %s",
+        Path(config.eval.output_path).with_suffix(".summary.json"),
+    )
+    return summary

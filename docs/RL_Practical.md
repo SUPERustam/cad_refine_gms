@@ -57,7 +57,11 @@ These are found in `configs/*.yaml` or passed as CLI arguments:
 
 ### 2. Log Files
 -   **Main log**: `logs_rl/RUN_NAME.log` (Training progress and sampled code).
+-   **Structured log**: `logs_rl/RUN_NAME.jsonl` (Shell + trainer + reward events with step/run correlation).
+-   **Failure payload log**: `logs_rl/RUN_NAME.failures.jsonl` (Per-sample failure payloads and serialized exceptions).
 -   **vLLM log**: `logs_rl/vllm_server.log` (Check this if generation hangs).
+
+For the full debugging and maintenance workflow, see [Logging System Guide](Logging_System.md).
 
 ## Troubleshooting
 

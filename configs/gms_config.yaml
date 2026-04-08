@@ -25,6 +25,13 @@ num_train_epochs: 20
 save_strategy: steps
 save_steps: 150
 #save_total_limit: 3
+log_dir: logs_rl
+structured_logging: true
+failure_payload_logging: true
+sample_payload_logging_steps: 25
+max_logged_completion_chars: 4000
+slow_reward_threshold_sec: 30.0
+slow_step_threshold_sec: 120.0
 
 temperature: 1.0
 top_p: 0.99

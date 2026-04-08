@@ -3,16 +3,19 @@ from metrics_async import get_metrics_from_texts
 from utils import _maybe_print_sample
 import numpy as np
 import os
+from logging_utils import log_event, log_failure_payload, truncate_text
 
 _DEFAULT_VAR_NAME = os.getenv("METRICS_VAR_NAME", "result")
 _FALLBACK_VAR_NAME = os.getenv("METRICS_VAR_FALLBACK", "")
 
-def reward_from_metrics(cd: float, iou: float, auc: float = 0, mode: str = "default") -> float:
+def reward_from_metrics(cd: float, iou: float, auc: float = 0, auc_gms: float = 0, mode: str = "default") -> float:
     if cd is None or math.isnan(cd) or cd <= 0: cd = 1.0
     if iou is None or (isinstance(iou, float) and math.isnan(iou)):
         iou = 0.0
     if auc is None or (isinstance(auc, float) and math.isnan(auc)):
         auc = 0.0
+    if auc_gms is None or (isinstance(auc_gms, float) and math.isnan(auc_gms)):
+        auc_gms = 0.0
     if mode == "10_iou":
         r = 10.0 * float(iou)
     elif mode == "cd_to_reward":
@@ -24,6 +27,8 @@ def reward_from_metrics(cd: float, iou: float, auc: float = 0, mode: str = "defa
         r = float(iou)
     elif mode == "10_normal_auc":
         r  = 10.0 * auc
+    elif mode == "10_auc_gms":
+        r = 10.0 * auc_gms
     elif mode == "5nc_5iou":
         r  = 5 * reward_from_auc_blend(auc) + 5 *iou
     else:
@@ -31,9 +36,22 @@ def reward_from_metrics(cd: float, iou: float, auc: float = 0, mode: str = "defa
     return float(np.clip(r, -10.0, 10.0))
 
 
-def get_reward_function(failure_reward, iou_coef=10, cd_coef=0, auc_coef=0, aoc_gms_coef=0, nc_params=None, mode="10_iou", print_every=50, var_name=None):
+def get_reward_function(
+    failure_reward,
+    iou_coef=10,
+    cd_coef=0,
+    auc_coef=0,
+    aoc_gms_coef=0,
+    nc_params=None,
+    mode="10_iou",
+    print_every=50,
+    var_name=None,
+    logger=None,
+    max_logged_completion_chars=4000,
+):
     def combined_reward(completions, mesh_path, trainer_state=None, **kwargs):
         vn = var_name or _DEFAULT_VAR_NAME
+        global_step = getattr(trainer_state, "global_step", None)
         # Get individual rewards
         rewards = []
         """
@@ -43,11 +61,15 @@ def get_reward_function(failure_reward, iou_coef=10, cd_coef=0, auc_coef=0, aoc_
 
         pred_metrics = get_metrics_from_texts(
             completions, mesh_path, nc_params, var_name=vn)
-        for m in pred_metrics:
+        failure_count = 0
+        timeout_count = 0
+        crash_count = 0
+        for idx, m in enumerate(pred_metrics):
             reward = 0
             iou = m["iou"] if m is not None else None
             cd =  m["cd"] if m is not None else None
             auc =  m["auc"] if m is not None else None
+            status = m.get("status", "ok") if m is not None else "missing"
             if iou is None:
                 reward = failure_reward
             else:
@@ -74,12 +96,53 @@ def get_reward_function(failure_reward, iou_coef=10, cd_coef=0, auc_coef=0, aoc_
                     reward = reward_from_metrics(cd, iou, auc=auc, mode=None)
             if not math.isfinite(reward): reward = failure_reward
             rewards.append(float(reward))
+            if status != "ok":
+                failure_count += 1
+            if status == "timeout":
+                timeout_count += 1
+            if status == "crash":
+                crash_count += 1
+            if status != "ok" and logger is not None:
+                log_failure_payload(
+                    "reward_sample_failure",
+                    status=status,
+                    global_step=global_step,
+                    sample_idx=idx,
+                    generation_idx=idx,
+                    mesh_path=mesh_path[idx],
+                    completion=truncate_text(completions[idx], max_logged_completion_chars),
+                    metrics=m,
+                    reward=reward,
+                    var_name=vn,
+                )
 
         # ---- print one sample every 50 steps ----
         top_idx = rewards.index(max(rewards))
         top_generation = completions[top_idx]
         top_mesh_path = mesh_path[top_idx]
-        _maybe_print_sample(top_generation, top_mesh_path, step=trainer_state.global_step, every=print_every)
+        _maybe_print_sample(
+            top_generation,
+            top_mesh_path,
+            step=global_step,
+            every=print_every,
+            logger=logger,
+            reward=rewards[top_idx],
+            generation_idx=top_idx,
+            max_logged_completion_chars=max_logged_completion_chars,
+        )
+        if logger is not None:
+            log_event(
+                logger,
+                "reward_batch_complete",
+                global_step=global_step,
+                completion_count=len(completions),
+                failure_count=failure_count,
+                timeout_count=timeout_count,
+                crash_count=crash_count,
+                reward_max=max(rewards) if rewards else None,
+                reward_min=min(rewards) if rewards else None,
+                reward_mean=float(np.mean(rewards)) if rewards else None,
+            )
         return rewards
     return combined_reward
 

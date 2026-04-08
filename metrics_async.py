@@ -12,6 +12,7 @@ import base64, pickle, json, signal, select
 import numpy as np
 
 import os
+from logging_utils import get_logger, log_event, serialize_exception
 
 _REMAP_RULES = [
     (
@@ -185,8 +186,8 @@ def compute_iou(gt_mesh, pred_mesh):
         union_volume = gt_volume + pred_volume - intersection_volume
         assert union_volume > 0
         return intersection_volume / union_volume
-    except:
-        pass
+    except Exception:
+        raise
 
 
 def compute_cd(pred_mesh, gt_mesh, n_points=8192):
@@ -258,76 +259,150 @@ def code_to_mesh_and_brep_less_safe(code_str, var_name="result"):
         # mesh.export(mesh_path)
         return mesh
     except Exception as e:
-        print(f"Error executing CadQuery code : {e}")
-        return None
+        raise RuntimeError(f"Error executing CadQuery code: {e}") from e
 
 
 def get_metrics_from_single_text(text, gt_file, n_points, nc_params=None, var_name="result"):
-    # ME: comment this
-    # gt_file = os.path.abspath(gt_file)
-    # gt_file = remap_path(gt_file)
+    logger = get_logger()
     base_file = os.path.basename(gt_file).rsplit('.stl', 1)[0]
+    result = {
+        "file_name": base_file,
+        "cd": None,
+        "iou": None,
+        "auc": None,
+        "auc_gms": None,
+        "status": "ok",
+        "phase": "init",
+        "timings": {},
+    }
+    started_at = time.perf_counter()
+    gt_mesh = None
+    pred_mesh = None
     try:
+        exec_started = time.perf_counter()
         pred_mesh = code_to_mesh_and_brep_less_safe(text, var_name)
+        result["timings"]["cadquery_exec_ms"] = round((time.perf_counter() - exec_started) * 1000, 3)
+        result["phase"] = "cadquery_exec"
     except Exception as e:
-        return dict(file_name=base_file, cd=None, iou=None, auc=None)
-    
-    if pred_mesh is None:
-        return dict(file_name=base_file, cd=None, iou=None, auc=None)
-    cd, iou, auc, auc_gms = None, None, None, None
+        result["status"] = "cadquery_error"
+        result["error"] = serialize_exception(e)
+        log_event(
+            logger,
+            "cadquery_execution_failed",
+            status="error",
+            level=40,
+            mesh_path=gt_file,
+            file_name=base_file,
+            phase="cadquery_exec",
+            exception=result["error"],
+        )
+        return result
+
     try: 
+        load_started = time.perf_counter()
         gt_mesh = trimesh.load_mesh(gt_file)
         gt_mesh = transform_mesh_0_1(gt_mesh)
         pred_mesh = transform_mesh_0_1(pred_mesh)
+        result["timings"]["mesh_load_ms"] = round((time.perf_counter() - load_started) * 1000, 3)
+        result["phase"] = "metrics"
 
-        cd = compute_cd(gt_mesh, pred_mesh, n_points)
+        cd_started = time.perf_counter()
+        result["cd"] = compute_cd(gt_mesh, pred_mesh, n_points)
+        result["timings"]["cd_ms"] = round((time.perf_counter() - cd_started) * 1000, 3)
         try:
-            iou = compute_iou(gt_mesh, pred_mesh)
+            iou_started = time.perf_counter()
+            result["iou"] = compute_iou(gt_mesh, pred_mesh)
+            result["timings"]["iou_ms"] = round((time.perf_counter() - iou_started) * 1000, 3)
         except Exception as e:
-            print(f"IoU error for {base_file}: {e}", flush=True)
-            iou = None
-            if nc_params and nc_params.get("get_nc") == True:
-                auc, _, _ = compute_normals_metrics(
+            result["status"] = "iou_error"
+            result["iou_error"] = serialize_exception(e)
+            log_event(
+                logger,
+                "iou_failed",
+                status="error",
+                level=40,
+                mesh_path=gt_file,
+                file_name=base_file,
+                phase="iou",
+                exception=result["iou_error"],
+            )
+        if nc_params and nc_params.get("get_nc") is True:
+            auc_started = time.perf_counter()
+            result["auc"], _, _ = compute_normals_metrics(
+                gt_mesh,
+                pred_mesh,
+                n_points=nc_params.get("n_points", n_points),
+                tol=nc_params.get("tol", 5),
+            )
+            result["timings"]["auc_ms"] = round((time.perf_counter() - auc_started) * 1000, 3)
+        if nc_params and nc_params.get("get_aoc_gms", False):
+            try:
+                from aoc_gms_metric import aoc_gms_from_meshes
+
+                aoc_started = time.perf_counter()
+                aoc_kwargs = {
+                    "n_points": nc_params.get("aoc_gms_n_points", n_points),
+                    "n_angles": nc_params.get("aoc_gms_n_angles", 125),
+                    "rel_dist_tol": nc_params.get("aoc_gms_rel_tol", 0.05),
+                    "cube_trick": nc_params.get("aoc_gms_cube_trick", True),
+                    "pc_cache_enable": nc_params.get("aoc_gms_pc_cache_enable", False),
+                    "upper_bound_tol_rt": nc_params.get("aoc_gms_upper_bound_tol_rt", 25),
+                    "autofix_sampling": nc_params.get("aoc_gms_autofix_sampling", False),
+                    "add_auc": True,
+                }
+
+                _, _, _, result["auc_gms"] = aoc_gms_from_meshes(
                     gt_mesh,
                     pred_mesh,
-                    n_points=nc_params.get("n_points", n_points),
-                    tol=nc_params.get("tol", 5),
+                    **aoc_kwargs,
                 )
-            if nc_params and nc_params.get("get_aoc_gms", False):
-                try:
-                    from aoc_gms_metric import aoc_gms_from_meshes
-
-                    aoc_kwargs = {
-                        "n_points": nc_params.get("aoc_gms_n_points", n_points),
-                        "n_angles": nc_params.get("aoc_gms_n_angles", 125),
-                        "rel_dist_tol": nc_params.get("aoc_gms_rel_tol", 0.05),
-                        "cube_trick": nc_params.get("aoc_gms_cube_trick", True),
-                        "pc_cache_enable": nc_params.get("aoc_gms_pc_cache_enable", False),
-                        "upper_bound_tol_rt": nc_params.get("aoc_gms_upper_bound_tol_rt", 25),
-                        "autofix_sampling": nc_params.get("aoc_gms_autofix_sampling", False),
-                        "add_auc": True,
-                    }
-
-                    _, _, _, auc_gms = aoc_gms_from_meshes(
-                        gt_mesh,
-                        pred_mesh,
-                        **aoc_kwargs,
-                    )
-                except Exception as e:
-                    print(f"AOC-GMS error for {base_file}: {e}", flush=True)
+                result["timings"]["aoc_gms_ms"] = round((time.perf_counter() - aoc_started) * 1000, 3)
+            except Exception as e:
+                result["status"] = "aoc_gms_error"
+                result["aoc_gms_error"] = serialize_exception(e)
+                log_event(
+                    logger,
+                    "aoc_gms_failed",
+                    status="error",
+                    level=40,
+                    mesh_path=gt_file,
+                    file_name=base_file,
+                    phase="aoc_gms",
+                    exception=result["aoc_gms_error"],
+                )
 
     except Exception as e:
-        print(f"error for {base_file}: {e}", flush=True)
-        pass
+        result["status"] = "metrics_error"
+        result["phase"] = "metrics"
+        result["error"] = serialize_exception(e)
+        log_event(
+            logger,
+            "metrics_failed",
+            status="error",
+            level=40,
+            mesh_path=gt_file,
+            file_name=base_file,
+            phase="metrics",
+            exception=result["error"],
+        )
     finally:
+        result["timings"]["total_ms"] = round((time.perf_counter() - started_at) * 1000, 3)
         try:
             if gt_mesh is not None:
                 del gt_mesh
             if pred_mesh is not None:
                 del pred_mesh
-        except:
-            pass
-    return dict(file_name=base_file, cd=cd, iou=iou, auc=auc, auc_gms=auc_gms)
+        except Exception:
+            log_event(
+                logger,
+                "metrics_cleanup_failed",
+                status="error",
+                level=40,
+                mesh_path=gt_file,
+                file_name=base_file,
+                phase="cleanup",
+            )
+    return result
 
 
 
@@ -344,6 +419,7 @@ def init_pool(max_workers):
             initializer=init_worker,
             context=ctx,
         )
+        log_event(get_logger(), "metrics_pool_initialized", pool_size=max_workers, start_method="forkserver")
     return POOL
 
 def close_pool():
@@ -352,6 +428,7 @@ def close_pool():
         POOL.close()
         POOL.join()
         POOL = None
+        log_event(get_logger(), "metrics_pool_closed")
 
 
 def timed_process_text(arg, timeout=100):
@@ -359,6 +436,7 @@ def timed_process_text(arg, timeout=100):
     parent, child = ctx.Pipe(duplex=False)
 
     p = ctx.Process(target=_run_child, args=(child, arg))
+    started_at = time.perf_counter()
     p.start()
     p.join(timeout)
 
@@ -366,9 +444,27 @@ def timed_process_text(arg, timeout=100):
         p.terminate()
         p.join()
         parent.close()
-        return "__TIMEOUT__"
+        return {
+            "file_name": os.path.basename(arg[1]).rsplit(".stl", 1)[0],
+            "cd": None,
+            "iou": None,
+            "auc": None,
+            "auc_gms": None,
+            "status": "timeout",
+            "phase": "worker_timeout",
+            "timings": {"total_ms": round((time.perf_counter() - started_at) * 1000, 3)},
+        }
 
-    result = parent.recv() if parent.poll() else "__CRASH__"
+    result = parent.recv() if parent.poll() else {
+        "file_name": os.path.basename(arg[1]).rsplit(".stl", 1)[0],
+        "cd": None,
+        "iou": None,
+        "auc": None,
+        "auc_gms": None,
+        "status": "crash",
+        "phase": "worker_crash",
+        "timings": {"total_ms": round((time.perf_counter() - started_at) * 1000, 3)},
+    }
     parent.close()
     return result  
 
@@ -377,11 +473,25 @@ def _run_child(conn, arg):
     try:
         res = get_metrics_from_single_text(*arg)
         conn.send(res)
+    except Exception as e:
+        conn.send(
+            {
+                "file_name": os.path.basename(arg[1]).rsplit(".stl", 1)[0],
+                "cd": None,
+                "iou": None,
+                "auc": None,
+                "auc_gms": None,
+                "status": "crash",
+                "phase": "worker_exception",
+                "error": serialize_exception(e),
+            }
+        )
     finally:
         conn.close()
 
 
 def get_metrics_from_texts(texts, meshes, nc_params=None, max_workers=None, var_name="result"):
+    logger = get_logger()
     n_points = 8192
     args = [
         (text, gt, n_points, nc_params, var_name)
@@ -390,12 +500,18 @@ def get_metrics_from_texts(texts, meshes, nc_params=None, max_workers=None, var_
     async_results = [POOL.apply_async(timed_process_text, args=(arg,)) for arg in args]
     results = []
 
-    for res in async_results:
+    for idx, res in enumerate(async_results):
         output = res.get()
-        if output == "__TIMEOUT__" or output == "__CRASH__":
-            print(f"[{output}] metrics task computation ERROR, skipping", flush=True)
-            results.append(dict(file_name=None, cd=None, iou=None, auc=None))
-        else:
-            results.append(output)
+        results.append(output)
+        if output.get("status") != "ok":
+            log_event(
+                logger,
+                "metrics_sample_non_ok",
+                status=output.get("status"),
+                level=40,
+                mesh_path=meshes[idx],
+                generation_idx=idx,
+                metrics=output,
+            )
 
     return results

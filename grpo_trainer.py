@@ -6,6 +6,7 @@
 
 import copy
 import os
+import time
 from contextlib import nullcontext
 
 from copy import deepcopy
@@ -23,6 +24,7 @@ from trl import GRPOTrainer
 from trl.extras.profiling import profiling_context
 
 from grpo_loss import cppo_compute_loss, adv_select_top_samples
+from logging_utils import log_event, scoped_context
 
 
 class TopSampleGRPOTrainer(GRPOTrainer):
@@ -48,6 +50,8 @@ class TopSampleGRPOTrainer(GRPOTrainer):
     def _generate_and_score_completions(self, inputs):
         if getattr(self, "_cached_step", None) == self.state.global_step:
             return self._cached_rollout
+        logger = getattr(self, "cad_logger", None)
+        rollout_started = time.perf_counter()
         device = self.accelerator.device
         mode = "train" if self.model.training else "eval"
         batch_size = self.args.per_device_train_batch_size if mode == "train" else self.args.per_device_eval_batch_size
@@ -55,6 +59,18 @@ class TopSampleGRPOTrainer(GRPOTrainer):
         repeated_inputs = self.repeat_inputs(inputs)
         inputs = repeated_inputs
         prompts_text = [x["prompt"] for x in inputs]
+        with scoped_context(global_step=self.state.global_step, rank=self.accelerator.process_index, mode=mode):
+            if logger is not None:
+                log_event(
+                    logger,
+                    "rollout_started",
+                    global_step=self.state.global_step,
+                    prompt_count=len(prompts_text),
+                    repeated_prompt_count=len(inputs),
+                    num_generations=self.num_generations,
+                    use_vllm=self.use_vllm,
+                    mode=mode,
+                )
         
 
         # We don't yet support visual reward models/function, so we keep a copy of the original text-only prompts for
@@ -104,6 +120,7 @@ class TopSampleGRPOTrainer(GRPOTrainer):
                     else:
                         ordered_set_of_images = None
 
+                    generation_started = time.perf_counter()
                     with profiling_context(self, "vLLM.generate"):
                         completion_ids = self.vllm_client.generate(
                             prompts=ordered_set_of_prompts,
@@ -117,6 +134,15 @@ class TopSampleGRPOTrainer(GRPOTrainer):
                             max_tokens=self.max_completion_length,
                             guided_decoding_regex=self.guided_decoding_regex,
                             generation_kwargs=self.args.generation_kwargs,
+                        )
+                    if logger is not None:
+                        log_event(
+                            logger,
+                            "vllm_generation_complete",
+                            global_step=self.state.global_step,
+                            duration_ms=round((time.perf_counter() - generation_started) * 1000, 3),
+                            prompt_count=len(ordered_set_of_prompts),
+                            num_generations=self.num_generations,
                         )
                 else:
                     completion_ids = [None] * len(all_prompts_text)
@@ -210,10 +236,12 @@ class TopSampleGRPOTrainer(GRPOTrainer):
         # Decode the generated completions
         completions_text = self.processing_class.batch_decode(completion_ids, skip_special_tokens=True)
         completions = completions_text
+        reward_started = time.perf_counter()
         # Calculate rewards for each reward function. rewards_per_func aggregates rewards across all processes. This is
         # important because rewards will be normalized per group, and completions are distributed. We will later slice
         # rewards_per_func to extract each process's subset.
         rewards_per_func = self._calculate_rewards(inputs, original_prompts, completions, completion_ids_list)
+        reward_duration_ms = round((time.perf_counter() - reward_started) * 1000, 3)
         # Apply weights to each reward function's output and sum
         rewards = (rewards_per_func * self.reward_weights.to(device).unsqueeze(0)).nansum(dim=1)
 
@@ -298,6 +326,20 @@ class TopSampleGRPOTrainer(GRPOTrainer):
             output["pixel_attention_mask"] = prompt_inputs["pixel_attention_mask"]
         if "image_sizes" in prompt_inputs:
             output["image_sizes"] = prompt_inputs["image_sizes"]
+
+        if logger is not None:
+            log_event(
+                logger,
+                "rollout_completed",
+                global_step=self.state.global_step,
+                duration_ms=round((time.perf_counter() - rollout_started) * 1000, 3),
+                reward_duration_ms=reward_duration_ms,
+                mean_reward=mean_grouped_rewards.mean().item(),
+                reward_std=std_grouped_rewards.mean().item(),
+                completion_mean_length=agg_completion_lengths.float().mean().item(),
+                clipped_completions_ratio=clipped_completions_ratio,
+                mode=mode,
+            )
         
         return output
     

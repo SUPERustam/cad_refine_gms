@@ -1,0 +1,136 @@
+Script started on 2026-04-07 13:04:25+00:00 [<not executed on terminal>]
+The following values were not passed to `accelerate launch` and had defaults used instead:
+	`--num_processes` was set to a value of `3`
+		More than one GPU was found, enabling multi-GPU training.
+		If this was unintended please pass in `--num_processes=1`.
+	`--num_machines` was set to a value of `1`
+	`--mixed_precision` was set to a value of `'no'`
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+INFO 04-07 13:04:44 [__init__.py:241] Automatically detected platform cuda.
+INFO 04-07 13:04:44 [__init__.py:241] Automatically detected platform cuda.
+INFO 04-07 13:04:44 [__init__.py:241] Automatically detected platform cuda.
+[metrics] pool workers=40 timeout_sec=100.0 (single-level pool; no nested Process per sample)
+[metrics] pool workers=40 timeout_sec=100.0 (single-level pool; no nested Process per sample)
+[metrics] pool workers=40 timeout_sec=100.0 (single-level pool; no nested Process per sample)
+The image processor of type `Qwen2VLImageProcessor` is now loaded as a fast processor by default, even if the model checkpoint was saved with a slow processor. This is a breaking change and may produce slightly different outputs. To continue using the slow processor, instantiate this class with `use_fast=False`. Note that this behavior will be extended to all models in a future release.
+The image processor of type `Qwen2VLImageProcessor` is now loaded as a fast processor by default, even if the model checkpoint was saved with a slow processor. This is a breaking change and may produce slightly different outputs. To continue using the slow processor, instantiate this class with `use_fast=False`. Note that this behavior will be extended to all models in a future release.
+The image processor of type `Qwen2VLImageProcessor` is now loaded as a fast processor by default, even if the model checkpoint was saved with a slow processor. This is a breaking change and may produce slightly different outputs. To continue using the slow processor, instantiate this class with `use_fast=False`. Note that this behavior will be extended to all models in a future release.
+You have video processor config saved in `preprocessor.json` file which is deprecated. Video processor configs should be saved in their own `video_preprocessor.json` file. You can rename the file or load and save the processor back which renames it automatically. Loading from `preprocessor.json` will be removed in v5.0.
+You have video processor config saved in `preprocessor.json` file which is deprecated. Video processor configs should be saved in their own `video_preprocessor.json` file. You can rename the file or load and save the processor back which renames it automatically. Loading from `preprocessor.json` will be removed in v5.0.
+You have video processor config saved in `preprocessor.json` file which is deprecated. Video processor configs should be saved in their own `video_preprocessor.json` file. You can rename the file or load and save the processor back which renames it automatically. Loading from `preprocessor.json` will be removed in v5.0.
+Total training steps : 1059680 
+Total training steps : 1059680 
+Total training steps : 1059680 
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+[rank1]:[W407 13:04:56.896310501 ProcessGroupNCCL.cpp:4718] [PG ID 0 PG GUID 0 Rank 1]  using GPU 1 as device used by this process is currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. You can pecify device_id in init_process_group() to force use of a particular device.
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+[rank2]:[W407 13:04:57.078410764 ProcessGroupNCCL.cpp:4718] [PG ID 0 PG GUID 0 Rank 2]  using GPU 2 as device used by this process is currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. You can pecify device_id in init_process_group() to force use of a particular device.
+INFO 04-07 13:04:57 [__init__.py:1418] Found nccl from library libnccl.so.2
+INFO 04-07 13:04:57 [pynccl.py:70] vLLM is using nccl==2.26.2
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+[rank0]:[W407 13:04:58.086175609 ProcessGroupNCCL.cpp:4718] [PG ID 0 PG GUID 0 Rank 0]  using GPU 0 as device used by this process is currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. You can pecify device_id in init_process_group() to force use of a particular device.
+resuming from checkpoint /scratch/498rustam/cad_refine_m/rl_gms_train_sft_30682_resume_54000/checkpoint-68000
+resuming from checkpoint /scratch/498rustam/cad_refine_m/rl_gms_train_sft_30682_resume_54000/checkpoint-68000
+The tokenizer has new PAD/BOS/EOS tokens that differ from the model config and generation config. The model config and generation config were aligned accordingly, being updated with the tokenizer's values. Updated tokens: {'bos_token_id': None, 'pad_token_id': 151643}.
+The tokenizer has new PAD/BOS/EOS tokens that differ from the model config and generation config. The model config and generation config were aligned accordingly, being updated with the tokenizer's values. Updated tokens: {'bos_token_id': None, 'pad_token_id': 151643}.
+resuming from checkpoint /scratch/498rustam/cad_refine_m/rl_gms_train_sft_30682_resume_54000/checkpoint-68000
+The tokenizer has new PAD/BOS/EOS tokens that differ from the model config and generation config. The model config and generation config were aligned accordingly, being updated with the tokenizer's values. Updated tokens: {'bos_token_id': None, 'pad_token_id': 151643}.
+There were missing keys in the checkpoint model loaded: ['lm_head.weight'].
+There were missing keys in the checkpoint model loaded: ['lm_head.weight'].
+There were missing keys in the checkpoint model loaded: ['lm_head.weight'].
+[1;38;5;214mCOMET WARNING:[0m To get all data logged automatically, import comet_ml before the following modules: torch, sklearn.
+[1;38;5;39mCOMET INFO:[0m Experiment is live on comet.com [38;5;39mhttps://www.comet.com/superustam/cadrille-rl/3761d38bf7c34ade85f784b82289de1b[0m
+
+
+  0% 0/1059680 [00:00<?, ?it/s]/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/torch/utils/checkpoint.py:86: UserWarning: None of the inputs have requires_grad=True. Gradients will be None
+  warnings.warn(
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/torch/utils/checkpoint.py:86: UserWarning: None of the inputs have requires_grad=True. Gradients will be None
+  warnings.warn(
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/torch/utils/checkpoint.py:86: UserWarning: None of the inputs have requires_grad=True. Gradients will be None
+  warnings.warn(
+`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`...
+`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`...
+`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`...
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/torch/utils/checkpoint.py:86: UserWarning: None of the inputs have requires_grad=True. Gradients will be None
+  warnings.warn(
+/scratch/498rustam/miniforge3/envs/cadtrl/lib/python3.10/site-packages/torch/utils/checkpoint.py:86: UserWarning: None of the inputs have requires_grad=True. Gradients will be None
+  warnings.warn(
+
+[SAMPLE @ step 68000]
+ Mesh path : /scratch/498rustam/datasets/deepcad_fusion_train/00735171.stl 
+ import cadquery as cq
+w0=cq.Workplane('ZX',origin=(0,-54,0))
+r=w0.sketch().segment((-25,-75),(29,-75)).segment((29,-61)).segment((-11,-61)).segment((-11,6)).segment((29,6)).segment((29,19)).segment((-25,19)).close().assemble().finalize().extrude(54)
+
+
+[SAMPLE @ step 68000]
+ Mesh path : /scratch/498rustam/datasets/MCB_A/00038269.stl 
+ import cadquery as cq
+w0=cq.Workplane('XY',origin=(0,0,98))
+r=w0.workplane(offset=-197/2).cylinder(197,10).union(w0.workplane(offset=2/2).cylinder(2,10))
+
+
+[SAMPLE @ step 68000]
+ Mesh path : /scratch/498rustam/datasets/MCB_A/00050328.stl 
+ import cadquery as cq
+w0=cq.Workplane('YZ',origin=(40,0,0))
+r=w0.sketch().circle(100).circle(75,mode='s').circle(55).circle(30,mode='s').finalize().extrude(-79).union(w0.sketch().circle(55).circle(30,mode='s').push([(-65,0)]).circle(20,mode='s').push([(-19,55)]).circle(19,mode='s').push([(59,0)]).circle(21,mode='s').finalize().extrude(-78))
+
+
+  6% 68001/1059680 [00:14<03:34, 4631.91it/s]
+  6% 68003/1059680 [00:24<03:34, 4631.91it/s]
+  6% 68004/1059680 [00:31<09:15, 1783.62it/s]
+  6% 68005/1059680 [00:33<10:13, 1617.37it/s]
+                                             
+{'loss': 0.0023, 'grad_norm': 0.046630859375, 'learning_rate': 7.408493065891209e-06, 'num_tokens': 1157570409.0, 'completions/mean_length': 109.37500381469727, 'completions/min_length': 57.5, 'completions/max_length': 211.5, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 109.37500381469727, 'completions/min_terminated_length': 57.5, 'completions/max_terminated_length': 211.5, 'rewards/combined_reward/mean': 6.215965270996094, 'rewards/combined_reward/std': 3.477478265762329, 'reward': 6.215965270996094, 'reward_std': 0.3249381445348263, 'frac_reward_zero_std': 0.3333333358168602, 'entropy': 0.06263155043125153, 'clip_ratio/low_mean': 0.0008310119359521195, 'clip_ratio/low_min': 0.0, 'clip_ratio/high_mean': 0.0021602446679025887, 'clip_ratio/high_max': 0.00526346848346293, 'clip_ratio/region_mean': 0.002991256571840495, 'epoch': 2.57}
+
+  6% 68005/1059680 [00:33<10:13, 1617.37it/s]
+  6% 68006/1059680 [00:34<11:35, 1425.47it/s]
+  6% 68007/1059680 [00:47<24:38, 670.61it/s] 
+  6% 68008/1059680 [00:49<27:27, 601.87it/s]
+  6% 68009/1059680 [00:51<31:28, 525.03it/s]
+  6% 68010/1059680 [01:04<1:09:59, 236.13it/s]
+                                              
+{'loss': 0.0056, 'grad_norm': 0.046142578125, 'learning_rate': 7.408148921748508e-06, 'entropy': 0.0486730569973588, 'clip_ratio/low_mean': 0.0009513049968518317, 'clip_ratio/low_min': 0.0, 'clip_ratio/high_mean': 0.0010526633326662705, 'clip_ratio/high_max': 0.002590823557693511, 'clip_ratio/region_mean': 0.0020039683353388683, 'num_tokens': 1157706988.0, 'completions/mean_length': 112.34896469116211, 'completions/min_length': 64.5, 'completions/max_length': 262.5, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 112.34896469116211, 'completions/min_terminated_length': 64.5, 'completions/max_terminated_length': 262.5, 'rewards/combined_reward/mean': 6.968966722488403, 'rewards/combined_reward/std': 3.353050112724304, 'reward': 6.968966960906982, 'reward_std': 0.49142318964004517, 'frac_reward_zero_std': 0.2500000074505806, 'epoch': 2.57}
+
+  6% 68010/1059680 [01:04<1:09:59, 236.13it/s]
+  6% 68011/1059680 [01:06<1:17:57, 212.00it/s]
+  6% 68012/1059680 [01:08<1:29:12, 185.28it/s]
+  6% 68013/1059680 [01:21<3:18:08, 83.41it/s] 
+  6% 68014/1059680 [01:23<3:40:12, 75.05it/s]
+  6% 68015/1059680 [01:24<4:11:42, 65.66it/s]
+                                             
+{'loss': -0.0008, 'grad_norm': 0.0146484375, 'learning_rate': 7.407804762751135e-06, 'entropy': 0.031388281285762785, 'clip_ratio/low_mean': 0.0005065908917458728, 'clip_ratio/low_min': 0.0, 'clip_ratio/high_mean': 0.0013450367318000645, 'clip_ratio/high_max': 0.0033392754616215826, 'clip_ratio/region_mean': 0.0018516276264563202, 'num_tokens': 1157774938.0, 'completions/mean_length': 108.8125, 'completions/min_length': 52.0, 'completions/max_length': 194.0, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 108.8125, 'completions/min_terminated_length': 52.0, 'completions/max_terminated_length': 194.0, 'rewards/combined_reward/mean': 7.280018329620361, 'rewards/combined_reward/std': 3.5800065994262695, 'reward': 7.2800188064575195, 'reward_std': 0.2710719704627991, 'frac_reward_zero_std': 0.1666666716337204, 'epoch': 2.57}
+
+  6% 68015/1059680 [01:24<4:11:42, 65.66it/s]
+  6% 68016/1059680 [01:37<9:23:15, 29.34it/s]
+  6% 68017/1059680 [01:39<10:29:40, 26.25it/s]
+  6% 68018/1059680 [01:41<12:04:02, 22.83it/s]
+  6% 68019/1059680 [01:53<26:42:50, 10.31it/s]
+  6% 68020/1059680 [01:55<29:47:24,  9.25it/s]
+                                              
+{'loss': 0.0008, 'grad_norm': 0.034912109375, 'learning_rate': 7.407460588901212e-06, 'num_tokens': 1157910150.0, 'completions/mean_length': 105.22916793823242, 'completions/min_length': 51.5, 'completions/max_length': 235.0, 'completions/clipped_ratio': 0.0, 'completions/mean_terminated_length': 105.22916793823242, 'completions/min_terminated_length': 51.5, 'completions/max_terminated_length': 235.0, 'rewards/combined_reward/mean': 6.2223615646362305, 'rewards/combined_reward/std': 3.2248462438583374, 'reward': 6.222362041473389, 'reward_std': 0.4524054527282715, 'frac_reward_zero_std': 0.2500000074505806, 'entropy': 0.05315125472843647, 'clip_ratio/low_mean': 0.0018818361801095306, 'clip_ratio/low_min': 0.0, 'clip_ratio/high_mean': 0.002425562555436045, 'clip_ratio/high_max': 0.0058355686953291295, 'clip_ratio/region_mean': 0.004307398688979447, 'epoch': 2.57}
+
+  6% 68020/1059680 [01:55<29:47:24,  9.25it/s]
+  6% 68021/1059680 [01:57<34:09:03,  8.07it/s]
+  6% 68022/1059680 [02:09<75:23:31,  3.65it/s]
+  6% 68023/1059680 [02:11<82:56:34,  3.32it/s]
+  6% 68024/1059680 [02:13<93:17:44,  2.95it/s]
+Script done on 2026-04-07 13:11:17+00:00 [COMMAND_EXIT_CODE="135"]
+

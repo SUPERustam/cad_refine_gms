@@ -1,3 +1,5 @@
+import comet_ml
+
 import torch
 
 from trl.trainer.grpo_trainer import nanmin, nanmax

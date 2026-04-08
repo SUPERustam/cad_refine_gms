@@ -3,10 +3,11 @@ import time
 
 os.environ["PYGLET_HEADLESS"] = "True"
 from multiprocessing.pool import Pool
-from multiprocessing import TimeoutError, Process
+from multiprocessing import Process
 from multiprocessing import get_context
 
 import subprocess, sys
+import traceback
 import base64, pickle, json, signal, select
 
 import numpy as np
@@ -267,6 +268,7 @@ def get_metrics_from_single_text(text, gt_file, n_points, nc_params=None, var_na
     # gt_file = os.path.abspath(gt_file)
     # gt_file = remap_path(gt_file)
     base_file = os.path.basename(gt_file).rsplit('.stl', 1)[0]
+    gt_mesh = None
     try:
         pred_mesh = code_to_mesh_and_brep_less_safe(text, var_name)
     except Exception as e:
@@ -333,11 +335,70 @@ def get_metrics_from_single_text(text, gt_file, n_points, nc_params=None, var_na
 
 
 POOL = None
+_POOL_PROCS = 0
+
+def _metrics_timeout_sec() -> float:
+    try:
+        return float(os.environ.get("METRICS_TIMEOUT_SEC", "100"))
+    except ValueError:
+        return 100.0
+
+
+class _MetricsTimeout(Exception):
+    """Raised in pool workers when wall-clock timeout fires (best-effort; may not interrupt native code)."""
+
+
+def _pool_worker_run(arg):
+    """
+    Run one metrics task inside a forkserver pool worker.
+
+    Previously each task forked a second child + Pipe for timeout isolation, which doubled
+    process count and IPC (semaphores/shm) and contributed to SIGBUS under load. Timeout is
+    handled here with SIGALRM / setitimer in the worker only (no nested Process).
+    """
+
+    def _run():
+        return get_metrics_from_single_text(*arg)
+
+    timeout = _metrics_timeout_sec()
+    if timeout <= 0 or os.name != "posix" or not hasattr(signal, "SIGALRM"):
+        try:
+            return _run()
+        except Exception:
+            print("[metrics] worker error (no-timeout path):", flush=True)
+            traceback.print_exc()
+            return dict(file_name=None, cd=None, iou=None, auc=None)
+
+    def _on_alarm(signum, frame):
+        raise _MetricsTimeout()
+
+    old = signal.signal(signal.SIGALRM, _on_alarm)
+    try:
+        signal.setitimer(signal.ITIMER_REAL, float(timeout))
+        try:
+            return _run()
+        except _MetricsTimeout:
+            return "__TIMEOUT__"
+        except Exception:
+            print("[metrics] worker error:", flush=True)
+            traceback.print_exc()
+            return dict(file_name=None, cd=None, iou=None, auc=None)
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0.0)
+    finally:
+        signal.signal(signal.SIGALRM, old)
+
 
 def init_pool(max_workers):
     ctx = get_context("forkserver")
-    global POOL
+    global POOL, _POOL_PROCS
     if POOL is None:
+        _POOL_PROCS = int(max_workers)
+        print(
+            f"[metrics] pool workers={max_workers} timeout_sec={_metrics_timeout_sec()} "
+            f"(single-level pool; no nested Process per sample)",
+            flush=True,
+        )
         #ctx = get_context("spawn")
         POOL = NonDaemonPool(
             processes=max_workers,
@@ -354,40 +415,18 @@ def close_pool():
         POOL = None
 
 
-def timed_process_text(arg, timeout=100):
-    ctx = get_context("fork")
-    parent, child = ctx.Pipe(duplex=False)
-
-    p = ctx.Process(target=_run_child, args=(child, arg))
-    p.start()
-    p.join(timeout)
-
-    if p.is_alive():
-        p.terminate()
-        p.join()
-        parent.close()
-        return "__TIMEOUT__"
-
-    result = parent.recv() if parent.poll() else "__CRASH__"
-    parent.close()
-    return result  
-
-
-def _run_child(conn, arg):
-    try:
-        res = get_metrics_from_single_text(*arg)
-        conn.send(res)
-    finally:
-        conn.close()
-
-
 def get_metrics_from_texts(texts, meshes, nc_params=None, max_workers=None, var_name="result"):
     n_points = 8192
     args = [
         (text, gt, n_points, nc_params, var_name)
         for text, gt in zip(texts, meshes)
     ]
-    async_results = [POOL.apply_async(timed_process_text, args=(arg,)) for arg in args]
+    if os.environ.get("METRICS_DEBUG", "").strip() in ("1", "true", "yes"):
+        print(
+            f"[metrics] batch completions={len(args)} pool_workers={_POOL_PROCS} pid={os.getpid()}",
+            flush=True,
+        )
+    async_results = [POOL.apply_async(_pool_worker_run, args=(arg,)) for arg in args]
     results = []
 
     for res in async_results:

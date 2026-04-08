@@ -9,23 +9,23 @@ weight_decay: 0
 # GRPOConfig defaults
 
 output_dir: models/test_cadrecodev2
-per_device_train_batch_size: 4
-gradient_accumulation_steps: 1
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 2
 
-max_completion_length: 3000
+max_completion_length: 3500
+max_prompt_length: 600
 
 log_completions: false
 logging_steps: 5
-# valid if using one device, otherwise adjust generation_batch_size
 num_generations: 16
-generation_batch_size: 64
+generation_batch_size: 384
 report_to: ["comet_ml"]
 run_name: grpo_cadrecodev2_0
 num_train_epochs: 20
 save_strategy: steps
-save_steps: 150
-#save_total_limit: 3
-log_dir: logs_rl
+save_steps: 400
+save_total_limit: 2
+log_dir: logs
 structured_logging: true
 failure_payload_logging: true
 sample_payload_logging_steps: 25
@@ -34,22 +34,25 @@ slow_reward_threshold_sec: 30.0
 slow_step_threshold_sec: 120.0
 
 temperature: 1.0
-top_p: 0.99
-top_k: 50
-importance_sampling_level: sequence
+top_p: 1.0
+top_k: 100
+importance_sampling_level: token
 loss_type: dr_grpo
 epsilon: 0.1
 num_iterations: 3
 scale_rewards: false
 
-learning_rate: 3e-5
+learning_rate: 1e-5
 
 # Reward defaults
-failure_reward: -10
+failure_reward: 0
 iou_coef: 0
 cd_coef: 0
 auc_coef: 0
 aoc_gms_coef: 10
+
+pool_size: 40
+top_samples: 4
 
 get_aoc_gms: false
 aoc_gms_n_points: 8192

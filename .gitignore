@@ -1,8 +1,6 @@
 __pycache__
 datasets/
 logs/
-slurm_logs/
-logs_rl/
 maksim_logs
 
 *.png
@@ -15,3 +13,7 @@ checkpoints/
 *.egg-info/
 rl_checkpoints_*
 predictions/
+rl_gms_*
+logs_rl/
+logs/
+slurm_logs/

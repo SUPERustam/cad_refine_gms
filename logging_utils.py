@@ -142,7 +142,7 @@ def ensure_session_id(run_name=None):
 
 def setup_logging(
     run_name,
-    log_dir="logs_rl",
+    log_dir="logs",
     structured_logging=True,
     failure_payload_logging=True,
     text_logging=True,

@@ -8,11 +8,11 @@ DELAY=5
 BASE_DIR="/scratch/498rustam/cad_refine_m/rl_checkpoints/"
 CHECKPOINT="/scratch/498rustam/cad_refine_m/checkpoints/final_model/"
 RUN_NAME="rl_base_train"
-LOG_FILE="/scratch/498rustam/cad_refine_m/logs_rl/${RUN_NAME}.log"
+LOG_FILE="/scratch/498rustam/cad_refine_m/logs/${RUN_NAME}.log"
 LAUNCH_SCRIPT="/scratch/498rustam/cad_refine_m/rl_train_cos_sched.py"
 
 CONFIG_FILE="/scratch/498rustam/cad_refine_m/config.yaml"
-VLLM_LOG="/scratch/498rustam/cad_refine_m/logs_rl/vllm_server.log"
+VLLM_LOG="/scratch/498rustam/cad_refine_m/logs/vllm_server.log"
 
 RESUME="False"
 

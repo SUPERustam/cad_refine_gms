@@ -10,8 +10,7 @@ HF_TOKEN= # your Hugging Face token
 ```bash
 mkdir -p rl_checkpoints/ # for saving RL checkpoints
 mkdir -p checkpoints/ # for saving SFT checkpoints
-mkdir -p logs_rl/ # for saving logs from the RL training
-mkdir -p slurm_logs/ # for saving logs from the SLURM training
+mkdir -p logs/ # training, vLLM, structured JSONL, and Slurm stdout/stderr
 ```
 
 3. Prepare the Dataset

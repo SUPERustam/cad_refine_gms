@@ -53,18 +53,18 @@ export METRICS_VAR_NAME='r'
 6. Training exits with a code like `135` and no obvious traceback
     - Check the structured log first:
 ```sh
-rg '"event": "train_exit"|"event": "script_exit"|"event": "shell_error"' logs_rl/<RUN_NAME>.jsonl
+rg '"event": "train_exit"|"event": "script_exit"|"event": "shell_error"' logs/<RUN_NAME>.jsonl
 ```
     - If `exit_code >= 128`, inspect `exit_signal` in the same event.
     - Then compare timestamps with:
 ```sh
-tail -n 100 logs_rl/vllm_server.log
+tail -n 100 logs/vllm_server.log
 ```
     - For the full workflow, see [Logging System Guide](Logging_System.md).
 
 7. You need the exact sample/completion that caused a reward failure
 ```sh
-rg 'reward_sample_failure|cadquery_execution_failed|metrics_sample_non_ok' logs_rl/<RUN_NAME>.jsonl logs_rl/<RUN_NAME>.failures.jsonl
+rg 'reward_sample_failure|cadquery_execution_failed|metrics_sample_non_ok' logs/<RUN_NAME>.jsonl logs/<RUN_NAME>.failures.jsonl
 ```
     - Use `global_step`, `mesh_path`, `sample_idx`, and `generation_idx` from the matching event.
-    - The failing completion payload is stored in `logs_rl/<RUN_NAME>.failures.jsonl`.
+    - The failing completion payload is stored in `logs/<RUN_NAME>.failures.jsonl`.

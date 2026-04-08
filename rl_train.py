@@ -54,7 +54,7 @@ class TrainingArgs:
 
 @dataclass
 class LoggingArgs:
-    log_dir: str = "logs_rl"
+    log_dir: str = "logs"
     structured_logging: bool = True
     failure_payload_logging: bool = True
     sample_payload_logging_steps: int = 25

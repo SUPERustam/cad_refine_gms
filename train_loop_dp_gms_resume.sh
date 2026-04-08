@@ -13,8 +13,8 @@ SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-3}"
 LAUNCH_SCRIPT="/scratch/498rustam/cad_refine_m/rl_train_cos_sched.py"
 CONFIG_FILE="/scratch/498rustam/cad_refine_m/configs/gms_config.yaml"
 
-LOG_FILE="/scratch/498rustam/cad_refine_m/logs_rl/${RUN_NAME}.log"
-VLLM_LOG="/scratch/498rustam/cad_refine_m/logs_rl/vllm_server.log"
+LOG_FILE="/scratch/498rustam/cad_refine_m/logs/${RUN_NAME}.log"
+VLLM_LOG="/scratch/498rustam/cad_refine_m/logs/vllm_server.log"
 
 ACCELERATE_LOG_LEVEL=INFO
 NCCL_DEBUG=INFO

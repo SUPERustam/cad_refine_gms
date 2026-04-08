@@ -24,13 +24,13 @@ Comet ML remains enabled for aggregate dashboards. Local logs are the source of 
 
 For a run named `RUN_NAME`, expect:
 
-- `logs_rl/RUN_NAME.log`
+- `logs/RUN_NAME.log`
   Human-readable console/training log.
-- `logs_rl/RUN_NAME.jsonl`
+- `logs/RUN_NAME.jsonl`
   Structured events from shell + Python code.
-- `logs_rl/RUN_NAME.failures.jsonl`
+- `logs/RUN_NAME.failures.jsonl`
   Failure payloads with completion text, mesh path, metrics/error payload, and correlation fields.
-- `logs_rl/vllm_server.log`
+- `logs/vllm_server.log`
   Raw vLLM server output.
 
 ## Core Correlation Fields
@@ -58,8 +58,8 @@ If a new log line cannot be tied back to a specific run, step, or phase, it is n
 ### 1. Find why a run exited
 
 ```sh
-tail -n 50 logs_rl/<RUN_NAME>.jsonl
-rg '"event": "train_exit"|"event": "script_exit"|"event": "shell_error"' logs_rl/<RUN_NAME>.jsonl
+tail -n 50 logs/<RUN_NAME>.jsonl
+rg '"event": "train_exit"|"event": "script_exit"|"event": "shell_error"' logs/<RUN_NAME>.jsonl
 ```
 
 If exit code is `>=128`, the shell wrapper also logs `exit_signal`. Example: exit code `135` usually maps to signal `7` (`BUS` on Linux).
@@ -67,7 +67,7 @@ If exit code is `>=128`, the shell wrapper also logs `exit_signal`. Example: exi
 ### 2. Find CadQuery failures
 
 ```sh
-rg 'cadquery_execution_failed|reward_sample_failure|metrics_sample_non_ok' logs_rl/<RUN_NAME>.jsonl logs_rl/<RUN_NAME>.failures.jsonl
+rg 'cadquery_execution_failed|reward_sample_failure|metrics_sample_non_ok' logs/<RUN_NAME>.jsonl logs/<RUN_NAME>.failures.jsonl
 ```
 
 Then inspect:
@@ -81,7 +81,7 @@ Then inspect:
 ### 3. Find worker slowdowns / hangs
 
 ```sh
-rg '"status": "timeout"|"status": "crash"|worker_timeout|worker_crash' logs_rl/<RUN_NAME>.jsonl logs_rl/<RUN_NAME>.failures.jsonl
+rg '"status": "timeout"|"status": "crash"|worker_timeout|worker_crash' logs/<RUN_NAME>.jsonl logs/<RUN_NAME>.failures.jsonl
 ```
 
 Check `timings.total_ms` and nearby rollout events in the main JSONL stream.
@@ -89,8 +89,8 @@ Check `timings.total_ms` and nearby rollout events in the main JSONL stream.
 ### 4. Correlate with vLLM issues
 
 ```sh
-tail -f logs_rl/vllm_server.log
-rg 'vllm_starting|vllm_started|vllm_generation_complete|train_exit' logs_rl/<RUN_NAME>.jsonl
+tail -f logs/vllm_server.log
+rg 'vllm_starting|vllm_started|vllm_generation_complete|train_exit' logs/<RUN_NAME>.jsonl
 ```
 
 If generation stalls, compare shell timestamps with the vLLM server log.
@@ -140,7 +140,7 @@ then also do the following:
 ### Recent failure payloads
 
 ```sh
-tail -n 20 logs_rl/<RUN_NAME>.failures.jsonl
+tail -n 20 logs/<RUN_NAME>.failures.jsonl
 ```
 
 ### Count failure types
@@ -150,7 +150,7 @@ python - <<'PY'
 import json
 from collections import Counter
 from pathlib import Path
-path = Path("logs_rl/<RUN_NAME>.failures.jsonl")
+path = Path("logs/<RUN_NAME>.failures.jsonl")
 counts = Counter()
 for line in path.read_text(encoding="utf-8").splitlines():
     if line.strip():
@@ -162,7 +162,7 @@ PY
 ### Inspect a single step
 
 ```sh
-rg '"global_step": 68020' logs_rl/<RUN_NAME>.jsonl logs_rl/<RUN_NAME>.failures.jsonl
+rg '"global_step": 68020' logs/<RUN_NAME>.jsonl logs/<RUN_NAME>.failures.jsonl
 ```
 
 ## Config Knobs

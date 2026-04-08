@@ -16,12 +16,12 @@ LAUNCH_SCRIPT="${SCRIPT_DIR}/rl_train_cos_sched.py"
 LOG_DIR="${SCRIPT_DIR}/logs_rl"
 VLLM_LOG="${LOG_DIR}/vllm_server.log"
 
-RUN_NAME="grpo_mae_render_1_resume_10400_2"
-OUTPUT_DIR="${SCRIPT_DIR}/rl_checkpoints/${RUN_NAME}"
+RUN_NAME="grpo_mae_render_2_resume_23200"
+OUTPUT_DIR="/scratch/hsegrif/cad_refine_m/rl_checkpoints/grpo_mae_render_2_resume_11600"
 
 SAVE_TOTAL_LIMIT="3"
 SFT_PATH="/scratch/498rustam/cad_refine_m/checkpoints/sft-30682/"
-RESUME="/scratch/hsegrif/cad_refine_m/rl_checkpoints/rl_mae_train/checkpoint-10400"
+RESUME="/scratch/hsegrif/cad_refine_m/rl_checkpoints/grpo_mae_render_2_resume_11600/checkpoint-23200"
 
 LOG_FILE="${LOG_DIR}/${RUN_NAME}.log"
 VLLM_WAIT="80"
@@ -30,12 +30,13 @@ export METRICS_VAR_NAME="r"
 
 # Slurm/file logs are not a color terminal: Rich (TRL log_completions) and tqdm emit
 # ANSI escapes that look like garbage in *.out; NO_COLOR disables them.
-export NO_COLOR=1
+# export NO_COLOR=1
 
 # Full prompt/completion text in logs (Rich tables truncate columns). See grpo_trainer.TopSampleGRPOTrainer.log
-export GRPO_LOG_FULL_COMPLETIONS=1
+# export GRPO_LOG_FULL_COMPLETIONS=1
 # Compare multiple completions for the same prompt (num_generations rollouts per input). Optional:
-export GRPO_LOG_GROUP_BY_PROMPT=1
+# export GRPO_LOG_GROUP_BY_PROMPT=1
+
 # export GRPO_LOG_PROMPT_GROUPS=2   # how many distinct prompts to print (default 1)
 
 # PyVista/VTK: off-screen renders (bitmaps for metrics). Inherited by training + metric workers.

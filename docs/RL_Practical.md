@@ -63,6 +63,8 @@ These are found in `configs/*.yaml` or passed as CLI arguments:
 
 For the full debugging and maintenance workflow, see [Logging System Guide](Logging_System.md).
 
+For the full debugging and maintenance workflow, see [Logging System Guide](Logging_System.md).
+
 ## Troubleshooting
 
 See [Troubleshooting](Troubleshooting.md) for more details.

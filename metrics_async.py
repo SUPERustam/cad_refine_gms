@@ -492,6 +492,7 @@ def close_pool():
         log_event(get_logger(), "metrics_pool_closed")
 
 
+
 def timed_process_text(arg, timeout=100):
     ctx = get_context("fork")
     parent, child = ctx.Pipe(duplex=False)

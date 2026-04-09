@@ -89,6 +89,7 @@ Check `timings.total_ms` and nearby rollout events in the main JSONL stream.
 ### 4. Correlate with vLLM issues
 
 ```sh
+<<<<<<< HEAD
 tail -f logs/vllm_server.log
 rg 'vllm_starting|vllm_started|vllm_generation_complete|train_exit' logs/<RUN_NAME>.jsonl
 ```
@@ -140,7 +141,11 @@ then also do the following:
 ### Recent failure payloads
 
 ```sh
+<<<<<<< HEAD
 tail -n 20 logs/<RUN_NAME>.failures.jsonl
+=======
+tail -n 20 logs_rl/<RUN_NAME>.failures.jsonl
+>>>>>>> 9973a20 (resolve conflicts with rl_gms)
 ```
 
 ### Count failure types
@@ -150,7 +155,11 @@ python - <<'PY'
 import json
 from collections import Counter
 from pathlib import Path
+<<<<<<< HEAD
 path = Path("logs/<RUN_NAME>.failures.jsonl")
+=======
+path = Path("logs_rl/<RUN_NAME>.failures.jsonl")
+>>>>>>> 9973a20 (resolve conflicts with rl_gms)
 counts = Counter()
 for line in path.read_text(encoding="utf-8").splitlines():
     if line.strip():
@@ -162,7 +171,11 @@ PY
 ### Inspect a single step
 
 ```sh
+<<<<<<< HEAD
 rg '"global_step": 68020' logs/<RUN_NAME>.jsonl logs/<RUN_NAME>.failures.jsonl
+=======
+rg '"global_step": 68020' logs_rl/<RUN_NAME>.jsonl logs_rl/<RUN_NAME>.failures.jsonl
+>>>>>>> 9973a20 (resolve conflicts with rl_gms)
 ```
 
 ## Config Knobs

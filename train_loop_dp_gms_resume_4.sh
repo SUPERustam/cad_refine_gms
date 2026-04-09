@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+source .env
+set -euo pipefail
+
+RUN_NAME="rl_gms_train_sft_30682_resume_68000"
+BASE_DIR="/scratch/498rustam/cad_refine_m/rl_gms_train_sft_30682_resume_68000/"
+
+CHECKPOINT="/scratch/498rustam/cad_refine_m/checkpoints/sft-30682/"
+
+SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-2}"
+LAUNCH_SCRIPT="/scratch/498rustam/cad_refine_m/rl_train_cos_sched.py"
+CONFIG_FILE="/scratch/498rustam/cad_refine_m/configs/gms_config.yaml"
+
+LOG_FILE="/scratch/498rustam/cad_refine_m/logs_rl/${RUN_NAME}.log"
+VLLM_LOG="/scratch/498rustam/cad_refine_m/logs_rl/vllm_server.log"
+
+ACCELERATE_LOG_LEVEL=INFO
+NCCL_DEBUG=INFO
+
+RESUME="/scratch/498rustam/cad_refine_m/rl_gms_train_sft_30682_resume_54000/checkpoint-68000"
+
+METRICS_VAR_NAME='r' # for Cadrille format
+
+CUDA_VISIBLE_DEVICES=0 trl vllm-serve \
+  --model Qwen/Qwen2-VL-2B-Instruct \
+  --max_model_len 3600 \
+  >"$VLLM_LOG" 2>&1 &
+sleep 80
+script --flush "$LOG_FILE" \
+  --command \
+  "COMET_API_KEY=${COMET_API_KEY} COMET_PROJECT_NAME=${COMET_PROJECT_NAME} COMET_WORKSPACE=${COMET_WORKSPACE} " \
+  "CUDA_VISIBLE_DEVICES=1,2,3 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True " \
+  "accelerate launch ${LAUNCH_SCRIPT} --config ${CONFIG_FILE} " \
+  "--output_dir ${BASE_DIR} --run_name ${RUN_NAME} --sft_path ${CHECKPOINT} " \
+  "--resume_ckpt_path ${RESUME} --save_total_limit ${SAVE_TOTAL_LIMIT}"
+
+
+# rerun
+# pkill -9 -f 'cadtrl|VLLM|vllm'  || true
+# number=$(ls -d "$BASE_DIR"/checkpoint-* 2>/dev/null \
+#   | sed 's/.*checkpoint-//' \
+#   | sort -n \
+#   | tail -n 1|| true)
+
+# if [[ -n "$number" ]]; then
+#   CHECKPOINT="$BASE_DIR/checkpoint-$number"
+#   echo "[$(date)] New CHECKPOINT: $CHECKPOINT"
+# fi
+# RESUME=$CHECKPOINT

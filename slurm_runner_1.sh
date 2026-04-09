@@ -7,3 +7,4 @@
 #SBATCH --error=logs/rl_gms_train_2.1.err
 
 srun bash /scratch/498rustam/cad_refine_m/train_loop_dp_gms_resume_2.1.sh
+

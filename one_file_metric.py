@@ -548,5 +548,3 @@ def _aoc_gms(
 
     logger.info(f"{aoc=} {raw_auc=} {max_possible_area=}")
     return aoc, tol_angles, gms_scores.tolist()
-
-

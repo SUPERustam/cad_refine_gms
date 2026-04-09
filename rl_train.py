@@ -6,6 +6,7 @@ import comet_ml
 import torch
 import torch.optim as optim
 from dataclasses import dataclass
+from typing import Optional
 
 from transformers import AutoProcessor, Qwen2VLForConditionalGeneration, get_constant_schedule
 
@@ -15,7 +16,7 @@ from datasets import load_from_disk
 
 from rewards import get_reward_function
 from grpo_trainer import TopSampleGRPOTrainer
-from metrics_async import init_pool, close_pool
+from metrics_async import init_pool, close_pool, resolve_metrics_var_name
 from logging_utils import install_excepthooks, install_signal_handlers, log_event, setup_logging
 
 SEED = 16
@@ -44,6 +45,7 @@ class RewardArgs:
     aoc_gms_pc_cache_enable: bool = False
     aoc_gms_upper_bound_tol_rt: int = 25
     aoc_gms_autofix_sampling: bool = False
+    metrics_var_name: Optional[str] = None
 
 @dataclass
 class TrainingArgs:
@@ -73,6 +75,7 @@ logger = setup_logging(
 )
 install_excepthooks(logger)
 install_signal_handlers(logger)
+cadquery_var_name = resolve_metrics_var_name(metrics_var_name=rargs.metrics_var_name)
 log_event(
     logger,
     "training_entrypoint_started",
@@ -82,6 +85,7 @@ log_event(
     output_dir=grpo.output_dir,
     learning_rate=grpo.learning_rate,
     pool_size=rargs.pool_size,
+    cadquery_var_name=cadquery_var_name,
 )
 
 init_pool(rargs.pool_size)
@@ -133,7 +137,8 @@ nc_params = {
 }
 reward_fn = get_reward_function(failure_reward=rargs.failure_reward, iou_coef=rargs.iou_coef, cd_coef=rargs.cd_coef, 
             auc_coef=rargs.auc_coef, aoc_gms_coef=rargs.aoc_gms_coef, nc_params=nc_params, mode=rargs.r_mode, print_every=largs.sample_payload_logging_steps,
-            logger=logger, max_logged_completion_chars=largs.max_logged_completion_chars)
+            logger=logger, max_logged_completion_chars=largs.max_logged_completion_chars,
+            var_name=cadquery_var_name)
 
 
 # those parameters will be passed to vllm generation trainer

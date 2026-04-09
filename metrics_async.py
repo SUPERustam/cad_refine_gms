@@ -14,6 +14,26 @@ import numpy as np
 
 import os
 from logging_utils import get_logger, log_event, serialize_exception
+from typing import Optional
+
+_DEFAULT_METRICS_VAR_NAME = "result"
+
+
+def resolve_metrics_var_name(*, metrics_var_name: Optional[str] = None) -> str:
+    """
+    CadQuery namespace key for the final solid (e.g. ``result`` vs ``r``).
+
+    Precedence:
+    1. Non-empty ``metrics_var_name`` (config / caller)
+    2. ``METRICS_VAR_NAME`` environment variable if set
+    3. ``result``
+    """
+    if metrics_var_name is not None and str(metrics_var_name).strip():
+        return str(metrics_var_name).strip()
+    env = os.getenv("METRICS_VAR_NAME", "").strip()
+    if env:
+        return env
+    return _DEFAULT_METRICS_VAR_NAME
 
 _REMAP_RULES = [
     (
@@ -252,7 +272,7 @@ def compound_to_mesh(compound):
 
 def code_to_mesh_and_brep_less_safe(code_str, var_name="result"):
     safe_ns = {"cq": cq}
-    ns=safe_ns.copy()
+    ns = safe_ns.copy()
     try:
         exec(code_str, ns)
         mesh = compound_to_mesh(ns[var_name].val())

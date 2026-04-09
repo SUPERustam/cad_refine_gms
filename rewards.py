@@ -1,12 +1,8 @@
 import math
-from metrics_async import get_metrics_from_texts
+from metrics_async import get_metrics_from_texts, resolve_metrics_var_name
 from utils import _maybe_print_sample
 import numpy as np
-import os
 from logging_utils import log_event, log_failure_payload, truncate_text
-
-_DEFAULT_VAR_NAME = os.getenv("METRICS_VAR_NAME", "result")
-_FALLBACK_VAR_NAME = os.getenv("METRICS_VAR_FALLBACK", "")
 
 def reward_from_metrics(cd: float, iou: float, auc: float = 0, auc_gms: float = 0, mode: str = "default") -> float:
     if cd is None or math.isnan(cd) or cd <= 0: cd = 1.0
@@ -50,7 +46,7 @@ def get_reward_function(
     max_logged_completion_chars=4000,
 ):
     def combined_reward(completions, mesh_path, trainer_state=None, **kwargs):
-        vn = var_name or _DEFAULT_VAR_NAME
+        vn = var_name if var_name is not None else resolve_metrics_var_name()
         global_step = getattr(trainer_state, "global_step", None)
         # Get individual rewards
         rewards = []

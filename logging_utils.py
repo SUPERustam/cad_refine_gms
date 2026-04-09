@@ -50,7 +50,9 @@ def serialize_exception(exc):
     return {
         "type": type(exc).__name__,
         "message": str(exc),
-        "traceback": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+        "traceback": "".join(
+            traceback.format_exception(type(exc), exc, exc.__traceback__)
+        ),
     }
 
 
@@ -178,7 +180,9 @@ def setup_logging(
         failure_logger.setLevel(logging.INFO)
         failure_logger.propagate = False
         if not failure_logger.handlers:
-            failure_logger.addHandler(JsonlEventHandler(log_path / f"{run_name}.failures.jsonl"))
+            failure_logger.addHandler(
+                JsonlEventHandler(log_path / f"{run_name}.failures.jsonl")
+            )
 
     _LOGGER_INITIALIZED = True
     bind_context(run_name=run_name, session_id=session_id)
@@ -204,7 +208,9 @@ def log_failure_payload(event, **fields):
     logger = get_failure_logger()
     if not logger.handlers:
         return None
-    payload = build_event(event, level="ERROR", status=fields.pop("status", "error"), **fields)
+    payload = build_event(
+        event, level="ERROR", status=fields.pop("status", "error"), **fields
+    )
     logger.info(event, extra={"event_payload": payload})
     return payload
 
@@ -216,12 +222,24 @@ def install_excepthooks(logger):
             "message": str(exc),
             "traceback": "".join(traceback.format_exception(exc_type, exc, tb)),
         }
-        log_event(logger, "uncaught_exception", status="error", level=logging.ERROR, exception=serialized)
+        log_event(
+            logger,
+            "uncaught_exception",
+            status="error",
+            level=logging.ERROR,
+            exception=serialized,
+        )
 
     def _handle_thread_exception(args):
         serialized = serialize_exception(args.exc_value)
         serialized["thread"] = getattr(args.thread, "name", "")
-        log_event(logger, "thread_exception", status="error", level=logging.ERROR, exception=serialized)
+        log_event(
+            logger,
+            "thread_exception",
+            status="error",
+            level=logging.ERROR,
+            exception=serialized,
+        )
 
     sys.excepthook = _handle_exception
     if hasattr(threading, "excepthook"):

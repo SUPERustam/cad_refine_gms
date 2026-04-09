@@ -45,7 +45,8 @@ scale_rewards: false
 # Reward defaults
 learning_rate: 1.0e-5
 
-# RewardArgs
+# RewardArgs — CadQuery variable holding the final solid (Cadrille often uses r, CadEvolve result)
+metrics_var_name: r
 failure_reward: 0
 iou_coef: 0
 cd_coef: 0

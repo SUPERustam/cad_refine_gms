@@ -18,26 +18,33 @@ NCCL_DEBUG=INFO
 
 RESUME="/scratch/498rustam/cad_refine_m/rl_gms_train_sft_30682_resume_54000/checkpoint-68000" # RL latest checkpoint
 
-<<<<<<< HEAD
-export METRICS_VAR_NAME='r' # for Cadrille format
+# CadQuery output variable: set metrics_var_name in CONFIG_FILE (optional: METRICS_VAR_NAME env).
 
-CMD='script --flush --return ${LOG_FILE} \
-=======
-METRICS_VAR_NAME='r' # for Cadrille format
-
-CMD='script --flush ${LOG_FILE} \
->>>>>>> 35fc70d (resolve conflicts with rl_gms 2)
---command "COMET_API_KEY=${COMET_API_KEY} COMET_PROJECT_NAME=${COMET_PROJECT_NAME} COMET_WORKSPACE=${COMET_WORKSPACE} CUDA_VISIBLE_DEVICES=1,2,3 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
-accelerate launch ${LAUNCH_SCRIPT} --config ${CONFIG_FILE} \
---output_dir ${BASE_DIR} --run_name ${RUN_NAME} --sft_path ${CHECKPOINT} --resume_ckpt_path ${RESUME}"'
-
-
-# Lower --gpu-memory-utilization vs default 0.9 to reduce KV-cache footprint and peak load on the vLLM GPU.
-<<<<<<< HEAD
-CUDA_VISIBLE_DEVICES=0 trl vllm-serve --model Qwen/Qwen2-VL-2B-Instruct --max_model_len 3600  >"$VLLM_LOG" 2>&1 &
-=======
-CUDA_VISIBLE_DEVICES=0 trl vllm-serve --model Qwen/Qwen2-VL-2B-Instruct --max_model_len 3600 \
-  --gpu-memory-utilization 0.75 >"$VLLM_LOG" 2>&1 &
->>>>>>> 35fc70d (resolve conflicts with rl_gms 2)
+CUDA_VISIBLE_DEVICES=0 trl vllm-serve --model Qwen/Qwen2-VL-2B-Instruct --max_model_len 3600 >"$VLLM_LOG" 2>&1 &
 sleep 80
-eval "$CMD"
+
+script --flush "$LOG_FILE" --command "
+  COMET_API_KEY=${COMET_API_KEY} \
+  COMET_PROJECT_NAME=${COMET_PROJECT_NAME} \
+  COMET_WORKSPACE=${COMET_WORKSPACE} \
+  CUDA_VISIBLE_DEVICES=1,2,3 \
+  PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+  accelerate launch ${LAUNCH_SCRIPT} \
+    --config ${CONFIG_FILE} \
+    --output_dir ${BASE_DIR} \
+    --run_name ${RUN_NAME} \
+    --sft_path ${CHECKPOINT} \
+    --resume_ckpt_path ${RESUME}"
+
+# rerun
+# pkill -9 -f 'cadtrl|VLLM|vllm'  || true
+# number=$(ls -d "$BASE_DIR"/checkpoint-* 2>/dev/null \
+#   | sed 's/.*checkpoint-//' \
+#   | sort -n \
+#   | tail -n 1|| true)
+
+# if [[ -n "$number" ]]; then
+#   CHECKPOINT="$BASE_DIR/checkpoint-$number"
+#   echo "[$(date)] New CHECKPOINT: $CHECKPOINT"
+# fi
+# RESUME=$CHECKPOINT

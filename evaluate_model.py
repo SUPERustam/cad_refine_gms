@@ -15,7 +15,12 @@ from tqdm import tqdm
 
 from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
 
-from metrics_async import init_pool, close_pool, get_metrics_from_texts
+from metrics_async import (
+    init_pool,
+    close_pool,
+    get_metrics_from_texts,
+    resolve_metrics_var_name,
+)
 from metrics_stl_pool import run_texts
 from pathlib import Path
 from multiview_dataset import STLImageToCode
@@ -48,7 +53,7 @@ def collate_fn(batch, processor):
     inputs["mesh_path"] = mesh_paths
     return inputs
 
-def evaluate(model, processor, ds, normalize="fixed", var_name='result'):
+def evaluate(model, processor, ds, normalize="fixed", var_name="result"):
     model.eval()
     device = next(model.parameters()).device
 
@@ -141,7 +146,7 @@ def main():
                     help="Variable name holding final CAD object.")
     args = parser.parse_args()
 
-    var_name = args.var_name or os.getenv("METRICS_VAR_NAME", "result")
+    eval_var_name = args.var_name if args.var_name else resolve_metrics_var_name()
 
     os.environ['FONTCONFIG_PATH'] = '/etc/fonts'
     os.environ['FONTCONFIG_FILE'] = '/etc/fonts/fonts.conf'
@@ -177,7 +182,7 @@ def main():
         #pickle_file = "/workspace-SR008.nfs2/users/barannikov/cad_refine_rl/datasets/MCB_A_batch_groundtruth.pkl",
         shuffle=False) 
 
-    res = evaluate(model, processor, eval_ds, normalize=args.normalize, var_name=var_name)
+    res = evaluate(model, processor, eval_ds, normalize=args.normalize, var_name=eval_var_name)
     close_pool()
 
     mn = (lambda x: float(np.mean(x)) if len(x) else float("nan"))

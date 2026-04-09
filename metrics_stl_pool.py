@@ -2,18 +2,19 @@ import cadquery as cq
 import os
 import numpy as np
 
+
 def init_worker():
-    os.environ["OMP_NUM_THREADS"]       = "1"
-    os.environ["OPENBLAS_NUM_THREADS"]  = "1"
-    os.environ["MKL_NUM_THREADS"]       = "1"
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
     import trimesh
     from scipy.spatial import cKDTree
     import cadquery as cq
 
     # make them available to your metric code
-    globals()['trimesh'] = trimesh
-    globals()['cKDTree'] = cKDTree
-    globals()['cq'] = cq
+    globals()["trimesh"] = trimesh
+    globals()["cKDTree"] = cKDTree
+    globals()["cq"] = cq
 
 
 class Wrapper:
@@ -29,7 +30,13 @@ class Wrapper:
 
 
 class ProcessPool:
-    def __init__(self, task_func, task_args: list[tuple], n_processes: int = 16, timeout: float = 5):
+    def __init__(
+        self,
+        task_func,
+        task_args: list[tuple],
+        n_processes: int = 16,
+        timeout: float = 5,
+    ):
         self.n_processes = n_processes
         self.timeout = timeout
         self.task_func = task_func
@@ -47,12 +54,18 @@ class ProcessPool:
 
         pbar = tqdm(total=len(self.task_args))
         task_args = self.split_list(self.task_args, self.n_processes)
-        shared_args_indicies = [CTX.Value('i', 0) for _ in range(self.n_processes)]
+        shared_args_indicies = [CTX.Value("i", 0) for _ in range(self.n_processes)]
         last_args_indicies = [0 for _ in range(self.n_processes)]
         results_q = CTX.Queue()
         results = []
-        pool = [CTX.Process(target=Wrapper(self.task_func), args=(task_args[i], shared_args_indicies[i], results_q), daemon=True)
-                for i in range(self.n_processes)]
+        pool = [
+            CTX.Process(
+                target=Wrapper(self.task_func),
+                args=(task_args[i], shared_args_indicies[i], results_q),
+                daemon=True,
+            )
+            for i in range(self.n_processes)
+        ]
         unprocessed_args = []
 
         for process in pool:
@@ -85,10 +98,12 @@ class ProcessPool:
                         hang_process.join()
 
                     unprocessed_args.append(task_args[i][shared_args_indicies[i].value])
-                    #with shared_args_indicies[i].get_lock():
+                    # with shared_args_indicies[i].get_lock():
                     shared_args_indicies[i].value += 1
                     new_process = CTX.Process(
-                        target=Wrapper(self.task_func), args=(task_args[i], shared_args_indicies[i], results_q), daemon=True
+                        target=Wrapper(self.task_func),
+                        args=(task_args[i], shared_args_indicies[i], results_q),
+                        daemon=True,
                     )
                     new_process.start()
                     pool[i] = new_process
@@ -121,7 +136,7 @@ class ProcessPool:
         chunks = []
         start = 0
         for size in sizes:
-            chunks.append(lst[start: start + size])
+            chunks.append(lst[start : start + size])
             start += size
         return chunks
 
@@ -165,7 +180,7 @@ def transform_mesh_0_1(mesh):
     mesh.apply_translation(-(mesh.bounds[0] + mesh.bounds[1]) / 2.0)  # shift to center
     extent = np.max(mesh.extents)
     if extent > 1e-7:
-            mesh.apply_scale(1.0 / extent)
+        mesh.apply_scale(1.0 / extent)
     mesh.apply_transform(trimesh.transformations.translation_matrix([0.5, 0.5, 0.5]))
     return mesh
 
@@ -180,15 +195,17 @@ def transform_pred_mesh(mesh):
     return mesh
 
 
-def compute_metrics(py_text, gt_mesh_path, n_points, var_name="result", normalize="fixed"):
+def compute_metrics(
+    py_text, gt_mesh_path, n_points, var_name="result", normalize="fixed"
+):
     init_worker()
-    base_file = os.path.basename(gt_mesh_path).rsplit('.stl', 1)[0]
+    base_file = os.path.basename(gt_mesh_path).rsplit(".stl", 1)[0]
     pred_mesh = py_file_to_mesh_file(py_text, var_name)
-    if pred_mesh == None : 
+    if pred_mesh == None:
         print(f"no path")
         return dict(file_name=base_file, cd=None, iou=None, auc=None)
     cd, iou, auc = None, None, None
-    try: 
+    try:
         gt_mesh = trimesh.load_mesh(gt_mesh_path)
         if normalize == "fixed":
             gt_mesh = transform_mesh_0_1(gt_mesh)
@@ -207,10 +224,8 @@ def compute_metrics(py_text, gt_mesh_path, n_points, var_name="result", normaliz
     except Exception as e:
         print(f"exception during execution {e}")
         pass
-    
-    return dict(file_name=base_file, cd=cd, iou=iou, auc=auc)
 
-    
+    return dict(file_name=base_file, cd=cd, iou=iou, auc=auc)
 
 
 def py_file_to_mesh_file(py_text, var_name):
@@ -223,18 +238,22 @@ def py_file_to_mesh_file(py_text, var_name):
     except Exception as ex:
         print(f"Exception {ex}")
         return None
-    
 
 
 def run_texts(py_texts, gt_paths, var_name="result", normalize="fixed", n_processes=16):
     n_points = 8192
     n = len(gt_paths)
 
-    pool = ProcessPool(task_func=compute_metrics, timeout = 16, task_args=list(zip(py_texts, gt_paths, [n_points] * n, [var_name]*n, [normalize]*n)))
+    pool = ProcessPool(
+        task_func=compute_metrics,
+        timeout=16,
+        task_args=list(
+            zip(py_texts, gt_paths, [n_points] * n, [var_name] * n, [normalize] * n)
+        ),
+    )
     results, unprocessed_args = pool.run()
     print(f"unprocessed args {len(unprocessed_args)}")
     for _ in unprocessed_args:
         results.append(None)
-    
 
     return results

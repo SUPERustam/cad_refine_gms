@@ -55,26 +55,36 @@ def save_img_any(img, path: Path):
         Image.fromarray(img).save(path)
     elif torch.is_tensor(img):
         t = img.detach().cpu()
-        if t.ndim == 3 and t.shape[0] in (1,3,4):  # CxHxW -> HxWxC
-            t = t.permute(1,2,0)
-        t = t.clamp(0,255).to(torch.uint8).numpy()
+        if t.ndim == 3 and t.shape[0] in (1, 3, 4):  # CxHxW -> HxWxC
+            t = t.permute(1, 2, 0)
+        t = t.clamp(0, 255).to(torch.uint8).numpy()
         Image.fromarray(t).save(path)
     else:
         # last resort
         Image.fromarray(np.asarray(img)).save(path)
 
+
 def list_stls(stl_root: Path) -> List[Path]:
-    return sorted([p for p in stl_root.rglob("*.stl") if p.is_file() and p.stat().st_size > 0])
+    return sorted(
+        [p for p in stl_root.rglob("*.stl") if p.is_file() and p.stat().st_size > 0]
+    )
 
 
 def build_inputs_for_images(imgs: List[Image.Image], processor: AutoProcessor):
     """
     Mimics the training collate: a single 'user' turn with one image, generation prompt enabled.
     """
-    messages = [[{"role": "user", "content": [{"type": "image", "image": img}]}] for img in imgs]
-    texts = [processor.apply_chat_template(m, tokenize=False, add_generation_prompt=True) for m in messages]
+    messages = [
+        [{"role": "user", "content": [{"type": "image", "image": img}]}] for img in imgs
+    ]
+    texts = [
+        processor.apply_chat_template(m, tokenize=False, add_generation_prompt=True)
+        for m in messages
+    ]
     vis_imgs, vis_vids = process_vision_info(messages)
-    inputs = processor(text=texts, images=vis_imgs, videos=vis_vids, padding=True, return_tensors="pt")
+    inputs = processor(
+        text=texts, images=vis_imgs, videos=vis_vids, padding=True, return_tensors="pt"
+    )
     return inputs
 
 
@@ -108,10 +118,28 @@ def wrap_dsl(pred_body: str) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Inference for Qwen2-VL on STL renders")
-    parser.add_argument("--stl_dir", type=Path, required=True, help="Folder with .stl files (recursively searched)")
-    parser.add_argument("--out_dir", type=Path, required=True, help="Where to write predictions")
-    parser.add_argument("--model_path", type=str, default=str(Path(__file__).parent / "work_dirs" / "qwen2vl_sampling_finetune_cadevolve_debug" / "final_model"))
+    parser = argparse.ArgumentParser(
+        description="Inference for Qwen2-VL on STL renders"
+    )
+    parser.add_argument(
+        "--stl_dir",
+        type=Path,
+        required=True,
+        help="Folder with .stl files (recursively searched)",
+    )
+    parser.add_argument(
+        "--out_dir", type=Path, required=True, help="Where to write predictions"
+    )
+    parser.add_argument(
+        "--model_path",
+        type=str,
+        default=str(
+            Path(__file__).parent
+            / "work_dirs"
+            / "qwen2vl_sampling_finetune_cadevolve_debug"
+            / "final_model"
+        ),
+    )
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--max_new_tokens", type=int, default=4000)
     parser.add_argument("--do_sample", action="store_true")
@@ -120,10 +148,22 @@ def main():
     parser.add_argument("--top_k", type=int, default=50)
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--repetition_penalty", type=float, default=1.0)
-    parser.add_argument("--apply_augs", action="store_true", help="Use Plotter augmentations (default: off for eval)")
-    parser.add_argument("--wrap_runnable", action="store_true", help="Wrap predicted body into runnable DSL .py")
-    parser.add_argument("--save_jsonl", action="store_true", help="Also save a preds.jsonl manifest")
-    parser.add_argument("--device", type=str, default=None, help="cuda|cpu (auto if not set)")
+    parser.add_argument(
+        "--apply_augs",
+        action="store_true",
+        help="Use Plotter augmentations (default: off for eval)",
+    )
+    parser.add_argument(
+        "--wrap_runnable",
+        action="store_true",
+        help="Wrap predicted body into runnable DSL .py",
+    )
+    parser.add_argument(
+        "--save_jsonl", action="store_true", help="Also save a preds.jsonl manifest"
+    )
+    parser.add_argument(
+        "--device", type=str, default=None, help="cuda|cpu (auto if not set)"
+    )
     # Keep processor resize consistent with training
     parser.add_argument("--resized_width", type=int, default=14 * 17 * 2)
     parser.add_argument("--resized_height", type=int, default=14 * 17 * 4)
@@ -151,11 +191,19 @@ def main():
         resized_height=args.resized_height,
         padding_side="left",
     )
-    dtype = torch.bfloat16 if (device.startswith("cuda") and torch.cuda.is_bf16_supported()) else torch.float16 if device.startswith("cuda") else torch.float32
+    dtype = (
+        torch.bfloat16
+        if (device.startswith("cuda") and torch.cuda.is_bf16_supported())
+        else torch.float16
+        if device.startswith("cuda")
+        else torch.float32
+    )
     model = Qwen2VLForConditionalGeneration.from_pretrained(
         args.model_path,
         torch_dtype=dtype,
-        attn_implementation="flash_attention_2" if device.startswith("cuda") else "eager",
+        attn_implementation="flash_attention_2"
+        if device.startswith("cuda")
+        else "eager",
         trust_remote_code=True,
     )
     model.eval().to(device)
@@ -208,28 +256,43 @@ def main():
                     text_to_save = pred_body
                     out_ext = ".txt"
 
-                rel_dir = stl_path.parent.relative_to(args.stl_dir) if stl_path.parent != args.stl_dir else Path(".")
+                rel_dir = (
+                    stl_path.parent.relative_to(args.stl_dir)
+                    if stl_path.parent != args.stl_dir
+                    else Path(".")
+                )
                 save_dir = args.out_dir / rel_dir
                 save_dir.mkdir(parents=True, exist_ok=True)
                 out_path = save_dir / f"{stem}{out_ext}"
                 out_path.write_text(text_to_save, encoding="utf-8")
 
-                manifest.append({
-                    "stl": str(stl_path),
-                    "pred_path": str(out_path),
-                    "wrapped": bool(args.wrap_runnable),
-                    "tokens": int(out_ids.shape[-1]),
-                })
+                manifest.append(
+                    {
+                        "stl": str(stl_path),
+                        "pred_path": str(out_path),
+                        "wrapped": bool(args.wrap_runnable),
+                        "tokens": int(out_ids.shape[-1]),
+                    }
+                )
 
         # reset
         batch_imgs, batch_paths = [], []
+
     # random_stls = np.random.choice(stls, size = 1000)
     # Iterate STLs, render and batch
     print(len(stls))
     for stl in stls:
         try:
             img = plotter.get_img(stl, None, apply_augs=args.apply_augs)
-            save_img_any(img, (args.out_dir / "renders" / stl.parent.relative_to(args.stl_dir) / f"{stl.stem}.png"))
+            save_img_any(
+                img,
+                (
+                    args.out_dir
+                    / "renders"
+                    / stl.parent.relative_to(args.stl_dir)
+                    / f"{stl.stem}.png"
+                ),
+            )
             batch_imgs.append(img)
             batch_paths.append(stl)
         except Exception as e:
@@ -253,7 +316,9 @@ def main():
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
         print(f"Saved manifest: {jsonl_path}")
 
-    print(f"Done. Processed {len(manifest)} / {len(stls)} STLs. Outputs -> {args.out_dir}")
+    print(
+        f"Done. Processed {len(manifest)} / {len(stls)} STLs. Outputs -> {args.out_dir}"
+    )
 
 
 if __name__ == "__main__":

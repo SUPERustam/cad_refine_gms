@@ -60,9 +60,6 @@ These are found in `configs/*.yaml` or passed as CLI arguments:
 -   **Structured log**: `logs/RUN_NAME.jsonl` (Shell + trainer + reward events with step/run correlation).
 -   **Failure payload log**: `logs/RUN_NAME.failures.jsonl` (Per-sample failure payloads and serialized exceptions).
 -   **vLLM log**: `logs/vllm_server.log` (Check this if generation hangs).
-
-For the full debugging and maintenance workflow, see [Logging System Guide](Logging_System.md).
-
 For the full debugging and maintenance workflow, see [Logging System Guide](Logging_System.md).
 
 ## Troubleshooting

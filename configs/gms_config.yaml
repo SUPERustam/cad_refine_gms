@@ -54,6 +54,8 @@ aoc_gms_coef: 10
 
 pool_size: 40
 
+top_samples: 4
+
 get_aoc_gms: false
 aoc_gms_n_points: 8192
 aoc_gms_rel_tol: 0.05

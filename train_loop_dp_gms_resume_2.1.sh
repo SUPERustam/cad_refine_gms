@@ -18,16 +18,15 @@ NCCL_DEBUG=INFO
 
 RESUME="/scratch/498rustam/cad_refine_m/rl_gms_train_sft_30682_resume_54000/checkpoint-68000" # RL latest checkpoint
 
-METRICS_VAR_NAME='r' # for Cadrille format
+export METRICS_VAR_NAME='r' # for Cadrille format
 
-CMD='script --flush ${LOG_FILE} \
+CMD='script --flush --return ${LOG_FILE} \
 --command "COMET_API_KEY=${COMET_API_KEY} COMET_PROJECT_NAME=${COMET_PROJECT_NAME} COMET_WORKSPACE=${COMET_WORKSPACE} CUDA_VISIBLE_DEVICES=1,2,3 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
 accelerate launch ${LAUNCH_SCRIPT} --config ${CONFIG_FILE} \
 --output_dir ${BASE_DIR} --run_name ${RUN_NAME} --sft_path ${CHECKPOINT} --resume_ckpt_path ${RESUME}"'
 
 
 # Lower --gpu-memory-utilization vs default 0.9 to reduce KV-cache footprint and peak load on the vLLM GPU.
-CUDA_VISIBLE_DEVICES=0 trl vllm-serve --model Qwen/Qwen2-VL-2B-Instruct --max_model_len 3600 \
-  --gpu-memory-utilization 0.75 >"$VLLM_LOG" 2>&1 &
+CUDA_VISIBLE_DEVICES=0 trl vllm-serve --model Qwen/Qwen2-VL-2B-Instruct --max_model_len 3600  >"$VLLM_LOG" 2>&1 &
 sleep 80
 eval "$CMD"

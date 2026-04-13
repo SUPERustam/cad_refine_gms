@@ -16,3 +16,4 @@ checkpoints/
 rl_checkpoints_*
 predictions/
 rl_gms_*
+temp/

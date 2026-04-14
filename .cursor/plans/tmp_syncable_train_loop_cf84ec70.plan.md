@@ -4,19 +4,19 @@ overview: Make `train_loop_dp_gms_resume_4.sh` the single source of truth for wh
 todos:
   - id: centralize-config
     content: Define editable tmp-staging and sync-back variables in `train_loop_dp_gms_resume_4.sh` and make the script use them as the single source of truth.
-    status: pending
+    status: completed
   - id: wire-runtime-paths
     content: Add shell staging helpers and point the actual training/vLLM runtime to tmp-backed paths instead of scratch originals.
-    status: pending
+    status: completed
   - id: dataset-cache-overrides
     content: Expose dataset and cache runtime overrides so downstream Python/HF tooling can use tmp-backed locations controlled by the train loop.
-    status: pending
+    status: completed
   - id: periodic-sync
     content: Implement checkpoint-triggered best-effort sync-back for writable outputs plus final `EXIT` sync.
-    status: pending
+    status: completed
   - id: dedupe-docs-helpers
     content: Align `slurm_scripts/copy_paster.sh` and `docs/file_access.md` with the new train-loop-driven design.
-    status: pending
+    status: completed
 isProject: false
 ---
 

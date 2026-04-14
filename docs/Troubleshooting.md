@@ -41,11 +41,21 @@ export METRICS_VAR_NAME='r'
 ```
 
 4. Error `-7` or Out of Memory (OOM)
-    -   Decrease `per_device_train_batch_size`.
+    -   Decrease `per_device_train_batch_size` and/or `gradient_accumulation_steps` in `configs/<your config>` 
     -   Ensure `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
     -   Ensure `gradient_checkpointing: true` is in the config.
     -   Ensure that you not exited disk space.
+    -   Decrease `pool_size` in `configs/<your config>` or increase `cpu` in slurm
+    -   Use `ENABLE_TMP_STAGING` in `configs/<your shell script>.sh`. See 6. section
+    -   (?) Manage memory (RAM) on slurm node
 
 5. Zero Loss / Zero Grad Norm
     - Check `failure_reward` and ensure the model is initialized from a decent SFT checkpoint.
     - Check if hf_dataset have proper paths to stls.
+
+6. `/tmp` staging: checkpoints on scratch look stale or missing vs compute node
+
+If you use **`train_loop_dp_gms_resume_4_tmp.sh`** with **`ENABLE_TMP_STAGING=1`**, training writes under `$TMP_ROOT/session_${RUN_NAME}_<pid>/` and syncs back to **`BASE_DIR_SCRATCH`** after each saved checkpoint (and on process exit). If the job was killed hard, `/tmp` may be lost before the final rsync.
+
+- Run **`scripts/tmp_staging_status.sh`** from the repo (same `TRAIN_LOOP_CONFIG` as the job). It compares the latest `checkpoint-*` under `/tmp` vs scratch and prints size/file counts. Use **`--dry-run-sync`** to see what `rsync` would still copy from tmp to scratch.
+- Ensure Slurm stderr/stdout still capture **`[tmp_staging]`** lines from the train loop (or use **`tmp_staging_status.sh --grep-logs`** against `LOG_FILE_SCRATCH` if those lines were tee’d there).

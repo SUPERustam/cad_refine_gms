@@ -43,7 +43,7 @@ cd_coef: 0
 auc_coef: 0
 aoc_gms_coef: 10
 
-pool_size: 32
+pool_size: 15
 
 get_aoc_gms: false
 aoc_gms_n_points: 8192

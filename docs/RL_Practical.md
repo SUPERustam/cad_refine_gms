@@ -16,6 +16,21 @@ Use one of the `train_loop_dp_*.sh` scripts. These scripts handle the vLLM serve
 bash train_loop_dp_gms.sh
 ```
 
+#### GMS resume with config file and optional `/tmp` staging
+
+[`slurm_runner.sh`](../slurm_runner.sh) runs [`train_loop_dp_gms_resume_4_tmp.sh`](../train_loop_dp_gms_resume_4_tmp.sh), which reads **[`configs/train_loop_dp_gms_resume_4_tmp.env`](../configs/train_loop_dp_gms_resume_4_tmp.env)** (or `TRAIN_LOOP_CONFIG`).
+
+- Set **`ENABLE_TMP_STAGING=1`** in that env file to train with outputs under `/tmp` and rsync checkpoints back to scratch (see [file_access.md](file_access.md)).
+- **`HF_DATASET_OVERRIDE`** is set automatically when `STAGE_DATASET=1`; Python picks it up in `rl_train_cos_sched.py`.
+- After a job, check copy/sync heuristics:
+
+```bash
+./scripts/tmp_staging_status.sh
+# or pass the session directory explicitly:
+./scripts/tmp_staging_status.sh /tmp/cad_refine_m_staging/session_<RUN_NAME>_<pid>
+./scripts/tmp_staging_status.sh --dry-run-sync --grep-logs
+```
+
 **What the loop script does:**
 1.  Starts a `vllm-serve` instance on a dedicated GPU (e.g., `CUDA_VISIBLE_DEVICES=1`).
 2.  Waits for the server to be ready.
@@ -56,8 +71,8 @@ These are found in `configs/*.yaml` or passed as CLI arguments:
 -   **`completions/mean_length`**: Watch for "reward hacking" where the model generates extremely long/short code to exploit the reward.
 
 ### 2. Log Files
--   **Main log**: `logs_rl/RUN_NAME.log` (Training progress and sampled code).
--   **vLLM log**: `logs_rl/vllm_server.log` (Check this if generation hangs).
+-   **Main log**: `logs/RUN_NAME.log` (Training progress and sampled code).
+-   **vLLM log**: `logs/vllm_server.log` (Check this if generation hangs).
 
 ## Troubleshooting
 

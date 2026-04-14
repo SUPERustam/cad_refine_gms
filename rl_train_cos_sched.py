@@ -81,11 +81,18 @@ model = Qwen2VLForConditionalGeneration.from_pretrained(
 model.enable_input_require_grads() 
 model.gradient_checkpointing_enable()
 
-HF_DATASET = "/scratch/498rustam/datasets/rendered_cadevolve_normalized_1_1_fixed" # ME: change this
+# Default dataset roots on scratch; train_loop_dp_gms_resume_4.sh can set HF_DATASET_OVERRIDE
+# to a staged path under /tmp when STAGE_DATASET=1.
+HF_DATASET = "/scratch/498rustam/datasets/rendered_cadevolve_normalized_1_1_fixed"  # ME: change this
 
-if "dp_f360" in grpo.output_dir :
+if "dp_f360" in grpo.output_dir:
     print("Training on only DeepCad and F360, no MCB")
-    HF_DATASET = "/scratch/498rustam/datasets/rendered_cadevolve_normalized_1_1_deepcadf360" # ME: change this TODO: fix dataset for msu
+    HF_DATASET = "/scratch/498rustam/datasets/rendered_cadevolve_normalized_1_1_deepcadf360"  # ME: change this TODO: fix dataset for msu
+
+_override = os.environ.get("HF_DATASET_OVERRIDE", "").strip()
+if _override:
+    HF_DATASET = _override
+    print(f"HF_DATASET_OVERRIDE set; loading dataset from {HF_DATASET}")
 
 hf_dataset = load_from_disk(HF_DATASET)
 

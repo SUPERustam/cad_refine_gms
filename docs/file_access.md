@@ -1,38 +1,67 @@
 # File and directory access (training on Slurm)
 
-Summary of disk access for the chain [`slurm_runner_1.sh`](../slurm_runner_1.sh) → [`train_loop_dp_gms_resume_4.sh`](../train_loop_dp_gms_resume_4.sh) → `trl vllm-serve` + `accelerate launch` [`rl_train_cos_sched.py`](../rl_train_cos_sched.py) + [`configs/gms_config.yaml`](../configs/gms_config.yaml). Other `train_loop_dp_*.sh` scripts follow the same idea with different hard-coded paths.
+## Which train loop?
+
+| Entry | Script | Config |
+|--------|--------|--------|
+| Slurm in this repo | [`slurm_runner.sh`](../slurm_runner.sh) runs [`train_loop_dp_gms_resume_4_tmp.sh`](../train_loop_dp_gms_resume_4_tmp.sh) | [`configs/train_loop_dp_gms_resume_4_tmp.env`](../configs/train_loop_dp_gms_resume_4_tmp.env) (override with `TRAIN_LOOP_CONFIG`) |
+| Simple local loop (no `/tmp` staging) | [`train_loop_dp_gms_resume_4.sh`](../train_loop_dp_gms_resume_4.sh) | Paths inlined in the shell script |
+
+Chain: train loop → `trl vllm-serve` + `accelerate launch` [`rl_train_cos_sched.py`](../rl_train_cos_sched.py) + [`configs/gms_config.yaml`](../configs/gms_config.yaml). Other `train_loop_dp_*.sh` scripts follow the same idea with different paths.
 
 ---
 
-## Access table
+## Optional `/tmp` staging (`train_loop_dp_gms_resume_4_tmp.sh`)
+
+When **`ENABLE_TMP_STAGING=1`** in [`configs/train_loop_dp_gms_resume_4_tmp.env`](../configs/train_loop_dp_gms_resume_4_tmp.env), the tmp train loop copies selected read-heavy trees under **`TMP_SESSION`** (under `TMP_ROOT`, name `session_${RUN_NAME}_$$`), points runtime `--output_dir` / `--sft_path` / `--resume_ckpt_path` at `/tmp`, and **rsyncs** writable outputs back to scratch.
+
+| Phase | Location | Note |
+|-------|-----------|------|
+| Canonical scratch paths | `BASE_DIR_SCRATCH`, `CHECKPOINT_SCRATCH`, `RESUME_SCRATCH`, dataset roots | Set in `configs/train_loop_dp_gms_resume_4_tmp.env` |
+| Runtime training I/O | `BASE_DIR`, `--sft_path`, `--resume_ckpt_path` | Under `$TMP_SESSION/…` when staging is on |
+| Periodic sync | `BASE_DIR_TMP` → `BASE_DIR_SCRATCH` | After each new `checkpoint-*` once `trainer_state.json` exists ([`scripts/tmp_staging_lib.sh`](../scripts/tmp_staging_lib.sh)) |
+| Final sync | Same + optional logs / HF cache | `EXIT` trap in the train loop |
+
+Toggles in the env file include: `STAGE_*`, `SYNC_BACK_*`, `STAGE_HF_CACHE`, `CKPT_WATCH_POLL_SEC`, `HF_CACHE_SCRATCH`, `STAGE_LOGS_TO_TMP`, etc.
+
+- **Dataset on `/tmp`:** when `STAGE_DATASET=1`, the loop sets **`HF_DATASET_OVERRIDE`**; [`rl_train_cos_sched.py`](../rl_train_cos_sched.py) loads that path instead of the default scratch dataset constants.
+- **HF cache on `/tmp`:** when `STAGE_HF_CACHE=1`, the loop sets `HF_HOME`, `HUGGINGFACE_HUB_CACHE`, and `TRANSFORMERS_CACHE` under the session tree.
+
+**Inspect sync health:** [`scripts/tmp_staging_status.sh`](../scripts/tmp_staging_status.sh) (same `TRAIN_LOOP_CONFIG`, compares latest `checkpoint-*` and sizes under `/tmp` vs scratch). Options: `--dry-run-sync`, `--grep-logs`.
+
+**Slurm smoke copy** (manual round-trip, not the live train loop): [`slurm_scripts/copy_paster.sh`](../slurm_scripts/copy_paster.sh) sources the **simple** [`train_loop_dp_gms_resume_4.sh`](../train_loop_dp_gms_resume_4.sh) with `TRAIN_LOOP_PATHS_ONLY=1` for path variables only. To align copy tests with the tmp train loop, use `TRAIN_LOOP_PATHS_ONLY=1 source train_loop_dp_gms_resume_4_tmp.sh` instead (after pointing `TRAIN_LOOP_CONFIG` at the same env file).
+
+---
+
+## Access table (tmp train loop + Python)
 
 | Source | Path or pattern | R/W | Note |
 |--------|------------------|-----|------|
-| [`slurm_runner_1.sh`](../slurm_runner_1.sh) | `/scratch/498rustam/cad_refine_m/train_loop_dp_gms_resume_4.sh` | R | `srun bash …` |
-| [`slurm_runner_1.sh`](../slurm_runner_1.sh) | `logs/slurm_rl_gms_train.{out,err}` (relative to submit cwd) | W | Under `/scratch/.../cad_refine_m/logs/` if `sbatch` was run from repo on scratch |
-| [`train_loop_dp_gms_resume_4.sh`](../train_loop_dp_gms_resume_4.sh) | `/scratch/498rustam/cad_refine_m/rl_gms_train_sft_30682_resume_68000/` (`BASE_DIR` / `--output_dir`) | W | Trainer checkpoints and artifacts |
-| [`train_loop_dp_gms_resume_4.sh`](../train_loop_dp_gms_resume_4.sh) | `/scratch/498rustam/cad_refine_m/checkpoints/sft-30682/` (`--sft_path`) | R | `from_pretrained` |
-| [`train_loop_dp_gms_resume_4.sh`](../train_loop_dp_gms_resume_4.sh) | `/scratch/498rustam/cad_refine_m/rl_gms_train_sft_30682_resume_54000/checkpoint-68000` (`--resume_ckpt_path`) | R | Resume state |
-| [`train_loop_dp_gms_resume_4.sh`](../train_loop_dp_gms_resume_4.sh) | `/scratch/498rustam/cad_refine_m/rl_train_cos_sched.py` | R | Entry script |
-| [`train_loop_dp_gms_resume_4.sh`](../train_loop_dp_gms_resume_4.sh) | `/scratch/498rustam/cad_refine_m/configs/gms_config.yaml` | R | No literal `/scratch` inside YAML |
-| [`train_loop_dp_gms_resume_4.sh`](../train_loop_dp_gms_resume_4.sh) | `/scratch/498rustam/cad_refine_m/logs_rl/<RUN_NAME>.log` | W | `script(1)` log |
-| [`train_loop_dp_gms_resume_4.sh`](../train_loop_dp_gms_resume_4.sh) | `/scratch/498rustam/cad_refine_m/logs_rl/vllm_server.log` | W | `trl vllm-serve` stdout/stderr |
-| [`train_loop_dp_gms_resume_4.sh`](../train_loop_dp_gms_resume_4.sh) | `.env` (relative path) | R | Resolved from job **initial cwd**, not script directory |
-| [`rl_train_cos_sched.py`](../rl_train_cos_sched.py) | `/scratch/498rustam/datasets/rendered_cadevolve_normalized_1_1_fixed` | R | Default `HF_DATASET` when `output_dir` lacks `dp_f360` |
-| [`rl_train_cos_sched.py`](../rl_train_cos_sched.py) | `/scratch/498rustam/datasets/rendered_cadevolve_normalized_1_1_deepcadf360` | R | Only if `dp_f360` ∈ `output_dir` |
-| Hugging Face Hub / Transformers | `$HF_HOME`, `HUGGINGFACE_HUB_CACHE`, `TRANSFORMERS_CACHE`, or `~/.cache/huggingface/…` | R/W | Model `Qwen/Qwen2-VL-2B-Instruct`; `~` → `/scratch/...` if `$HOME` is on scratch |
-| Accelerate | under HF cache, e.g. `~/.cache/huggingface/accelerate` | R/W | `accelerate launch` |
-| Comet ML | Comet local/offline dirs (often under `$HOME`) | R/W | `report_to: ["comet_ml"]` in `gms_config`; keys in [`.env`](../.env) |
-| `TMPDIR` / `TMP` / `TEMP` | site- or Slurm-defined | R/W | PyTorch, vLLM, other temps; may be scratch on cluster |
-| `$XDG_CACHE_HOME` | if set | R/W | Replaces default `~/.cache` for many tools |
-| Dataset rows (e.g. `mesh_path`) | values inside HF dataset on disk | R | Not literals in [`rewards.py`](../rewards.py) / [`metrics_async.py`](../metrics_async.py); paths depend on dataset build |
-| Other scripts (not this chain) | various `/scratch/...` in `train_loop_dp_*.sh`, [`benchmark/eval_cadevolve.py`](../benchmark/eval_cadevolve.py), [`slurm_scripts/`](../slurm_scripts/) | — | See `rg /scratch` in repo if you run them |
+| [`slurm_runner.sh`](../slurm_runner.sh) | [`train_loop_dp_gms_resume_4_tmp.sh`](../train_loop_dp_gms_resume_4_tmp.sh) | R | `srun bash …` |
+| Slurm | `logs/slurm_*.{out,err}` (relative to submit cwd) | W | e.g. repo [`logs/`](../logs/) |
+| [`configs/train_loop_dp_gms_resume_4_tmp.env`](../configs/train_loop_dp_gms_resume_4_tmp.env) | `BASE_DIR_SCRATCH`, checkpoints, toggles | R | Sourced by train loop; edit for config-driven runs |
+| Train loop (staging on) | `$TMP_SESSION/train_output` | R/W | Mirror of scratch output during run |
+| Train loop (staging on) | `$TMP_SESSION/sft_checkpoint`, `resume_ckpt`, optional `hf_dataset`, `hf_home` | R/W | Staged inputs / cache |
+| [`train_loop_dp_gms_resume_4_tmp.sh`](../train_loop_dp_gms_resume_4_tmp.sh) | [`rl_train_cos_sched.py`](../rl_train_cos_sched.py), [`configs/gms_config.yaml`](../configs/gms_config.yaml) | R | Paths from env `LAUNCH_SCRIPT`, `CONFIG_FILE` |
+| Train loop | `LOG_FILE_SCRATCH` → `logs/<RUN_NAME>.log` (via `REPO_ROOT`) | W | `script(1)`; optional `STAGE_LOGS_TO_TMP` |
+| Train loop | `VLLM_LOG_SCRATCH` | W | `trl vllm-serve` |
+| Train loop | `.env` in repo root | R | `SCRIPT_DIR/.env` next to the script |
+| [`rl_train_cos_sched.py`](../rl_train_cos_sched.py) | default dataset under `/scratch/498rustam/datasets/...` | R | Unless `HF_DATASET_OVERRIDE` is set |
+| [`rl_train_cos_sched.py`](../rl_train_cos_sched.py) | `$HF_DATASET_OVERRIDE` | R | Staged dataset path when `STAGE_DATASET=1` |
+| Hugging Face / Accelerate | `$HF_HOME`, hub/transformers cache | R/W | Can be redirected to `/tmp` when `STAGE_HF_CACHE=1` |
+| Comet ML | keys in `.env`, local dirs under `$HOME` | R/W | `report_to` in `gms_config` |
+| `TMPDIR` / `XDG_CACHE_HOME` | cluster defaults | R/W | PyTorch, vLLM, other temps |
+| Dataset rows (`mesh_path`, etc.) | inside HF dataset on disk | R | See [`rewards.py`](../rewards.py), [`metrics_async.py`](../metrics_async.py) |
+
+### Simple train loop (`train_loop_dp_gms_resume_4.sh`)
+
+Inline `BASE_DIR`, `CHECKPOINT`, `RESUME`, `logs/…`; no `BASE_DIR_SCRATCH` names; no `/tmp` staging. `.env` is loaded from **current working directory** (`source .env`), not necessarily repo root.
 
 ---
 
 ## Notes
 
-- [`rl_train.py`](../rl_train.py) repeats the same dataset `/scratch` constants but is **not** invoked by `slurm_runner_1.sh` / `train_loop_dp_gms_resume_4.sh`.
-- Repo does **not** set `HF_HOME`, `TMPDIR`, or `HOME` in the resume-4 script; indirect scratch I/O depends on the **login/compute environment**.
+- [`rl_train.py`](../rl_train.py) is not invoked by these Slurm chains.
+- With **staging off** (or the simple train loop), the shell does not set `HF_HOME` / `TMPDIR`; behavior depends on the compute environment.
 - Inspect env: `python -c "import os; print('HOME', os.path.expanduser('~')); print('TMPDIR', os.environ.get('TMPDIR')); print('XDG_CACHE_HOME', os.environ.get('XDG_CACHE_HOME')); print('HF_HOME', os.environ.get('HF_HOME'))"`.
-- More workflow context: [AGENTS.md](../AGENTS.md), [docs/Setup.md](Setup.md).
+- More workflow context: [AGENTS.md](../AGENTS.md), [docs/Setup.md](Setup.md), [docs/RL_Practical.md](RL_Practical.md).
